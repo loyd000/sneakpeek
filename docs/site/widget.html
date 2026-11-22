@@ -1,0 +1,847 @@
+<!-- Made by docs/build-demo.js from index.html. Edit index.html, not this. -->
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'">
+<title>SneakPeek</title>
+<style>
+  @font-face { font-family: "Inter"; font-weight: 100 900; font-display: block;
+    src: url("inter.woff2") format("woff2"); }
+  :root {
+    --ink: #0a0a0a;
+    --text: #f4f1ec;
+    --muted: rgba(244, 241, 236, .52);
+    --track: rgba(255, 255, 255, .08);
+    --claude: #d97757; /* from the official logo */
+    --codex: #00ffc8;
+    --hot: #ff5a5a;
+  }
+  [hidden] { display: none !important; } /* the hidden attribute always wins over a component's own display */
+  html, body { margin: 0; height: 100%; background: transparent; overflow: hidden; user-select: none;
+    font: 13px/1.3 "Inter", "Segoe UI", system-ui, sans-serif; font-feature-settings: "cv11", "ss01"; color: var(--text); }
+  svg#shape { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
+  #blob { fill: var(--ink); pointer-events: visiblePainted; cursor: pointer; }
+
+  #icon { position: absolute; left: 0; top: 0; width: 32px; height: 32px; margin: -16px 0 0 -16px; cursor: pointer; will-change: transform; }
+  .mark { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+
+  /* Logo of the AI in use; the other one waits shrunk and turned away, so switching is a crossfade + twist. */
+  .mark { opacity: 0; transform: scale(.5) rotate(-60deg); transition: opacity .45s, transform .7s cubic-bezier(.2, 1.4, .4, 1); }
+  body[data-ai="claude"] .mark.claude, body[data-ai="codex"] .mark.codex { opacity: 1; transform: none; }
+  .mark svg { position: absolute; inset: 2px; width: 28px; height: 28px; overflow: visible; }
+  .claude path { fill: var(--claude); }
+  .codex svg { fill: var(--text); transition: fill .3s; }
+  /* Claude working: the logo swaps for Claude Code's spinner symbols. */
+  .spin { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); white-space: nowrap; opacity: 0; color: var(--claude);
+    font: 34px/1 "Segoe UI Symbol", "Segoe UI", sans-serif; }
+  .claude svg { transition: opacity .2s; }
+  body.working .claude svg { opacity: 0; }
+  body.working .claude .spin { opacity: 1; }
+  /* Codex working: the knot dims and a band of light sweeps across it (a masked bright copy on top). */
+  body.working .codex svg:not(.hi) { fill: #5b5955; }
+  .codex .hi { fill: #fff; opacity: 0; transition: opacity .3s;
+    -webkit-mask: linear-gradient(110deg, transparent 35%, #000 50%, transparent 65%) 0 0 / 300% 100%; }
+  body.working .codex .hi { opacity: 1; animation: sweep 1.6s linear infinite; }
+  @keyframes sweep { from { -webkit-mask-position: 100% 0; } to { -webkit-mask-position: 0 0; } }
+
+  /* "Done" note: a small pill beside the closed tab. pointer-events: none keeps clicks passing through to the desktop. */
+  #toast { position: absolute; right: 50px; top: 380px; display: flex; align-items: center; gap: 7px; padding: 8px 13px;
+    border-radius: 99px; background: var(--ink); color: var(--muted); font-size: 12px; white-space: nowrap; pointer-events: none;
+    opacity: 0; transform: translate(14px, -50%); transition: opacity .35s, transform .5s cubic-bezier(.2, 1.3, .4, 1); }
+  #toast.show { opacity: 1; transform: translate(0, -50%); }
+  body.open #toast { opacity: 0; }
+  #toast b { color: var(--text); font-weight: 600; }
+  #toast .ok { color: var(--c); font-weight: 700; }
+
+  /* Music in the tab: round cover art (or equaliser bars when there's no art) while something plays. */
+  .mark.music { display: grid; place-items: center; }
+  .mark.music .art { width: 28px; height: 28px; border-radius: 50%; object-fit: cover; box-shadow: 0 0 0 1.5px rgba(255, 255, 255, .12); }
+  .mark.music .eq { display: none; gap: 3px; align-items: end; height: 18px; }
+  .mark.music.no-art .art { display: none; }
+  .mark.music.no-art .eq { display: flex; }
+  .eq i { width: 4px; border-radius: 2px; background: var(--text); animation: eq 1s ease-in-out infinite; }
+  .eq i:nth-child(2) { animation-delay: -.35s; } .eq i:nth-child(3) { animation-delay: -.7s; }
+  @keyframes eq { 0%, 100% { height: 5px; } 50% { height: 18px; } }
+  body.music .mark.claude, body.music .mark.codex { opacity: 0; transform: scale(.5) rotate(-60deg); }
+  body.music .mark.music { opacity: 1; transform: none; }
+
+  /* Now playing in the panel */
+  .np { display: flex; gap: 14px; align-items: center; }
+  .np .cover { width: 64px; height: 64px; flex: none; border-radius: 50%; object-fit: cover; background: #1d1d1d; box-shadow: 0 0 0 1.5px rgba(255, 255, 255, .1); }
+  .mark.music .art, .np .cover { animation: vinyl 10s linear infinite paused; }
+  body.playing .mark.music .art, body.playing .np .cover { animation-play-state: running; }
+  @keyframes vinyl { to { transform: rotate(360deg); } }
+  .np .meta { min-width: 0; }
+  .np .t { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .np .a { color: var(--muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .mbar { height: 2px; border-radius: 2px; background: var(--track); margin-top: 12px; overflow: hidden; }
+  .mbar .mfill { height: 100%; width: 0; background: var(--text); transition: width 1s linear; }
+  .times { display: flex; justify-content: space-between; margin-top: 5px; color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+  .ctl { display: flex; justify-content: center; align-items: center; gap: 14px; margin-top: 4px; }
+  .ctl button { all: unset; cursor: pointer; width: 32px; height: 32px; display: grid; place-items: center; border-radius: 50%; color: var(--text); transition: background .15s; }
+  .ctl button:hover { background: var(--track); }
+  .ctl .play { width: 38px; height: 38px; background: var(--text); color: var(--ink); }
+  .ctl .play:hover { background: var(--text); opacity: .85; }
+  .ctl button:focus-visible { outline: 1px solid var(--muted); }
+  .ctl svg { width: 16px; height: 16px; fill: currentColor; }
+
+  /* Island / Notch: the live-activity strip inside the pill (working, music, notes). */
+  #strip { position: absolute; display: flex; align-items: center; gap: 8px; font-size: 12px; white-space: nowrap; overflow: hidden;
+    opacity: 0; transition: opacity .18s; pointer-events: none; }
+  #strip.show { opacity: 1; transition: opacity .25s .14s; }
+  #strip .grow { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  #strip .mut { color: var(--muted); }
+  #strip .ok { font-weight: 700; color: var(--c, var(--text)); }
+  #strip .timer { font-variant-numeric: tabular-nums; color: var(--muted); }
+  #strip .eqs { display: flex; gap: 2px; align-items: end; height: 13px; flex: none; }
+  #strip .eqs i { width: 3px; border-radius: 2px; background: var(--text); animation: eqs 1s ease-in-out infinite; }
+  #strip .eqs i:nth-child(2) { animation-delay: -.35s; } #strip .eqs i:nth-child(3) { animation-delay: -.7s; }
+  @keyframes eqs { 0%, 100% { height: 4px; } 50% { height: 13px; } }
+  body.top #toast { display: none; } /* notes appear inside the island instead */
+
+  #clip { position: absolute; inset: 0; pointer-events: none; } /* clipped to the blob outline every frame */
+  /* Cover background: while a song plays, a dimmed, blurred copy of its cover fills the outline (under the logo).
+     Faint when closed, full when open, plain black while an approval or question is showing. */
+  #backdrop { position: absolute; inset: 0; overflow: hidden; pointer-events: none; opacity: 0; transition: opacity .6s ease; }
+  #backdrop img { position: absolute; left: -30%; top: -30%; width: 160%; height: 160%; object-fit: cover; opacity: 0;
+    filter: blur(28px) saturate(1.35) brightness(.8); transition: opacity .7s ease; }
+  #backdrop img.on { opacity: 1; }
+  #backdrop::after { content: ""; position: absolute; inset: 0; background: rgba(10, 10, 10, .56); }
+  body.cover-bg #backdrop { opacity: .55; }
+  body.cover-bg.open #backdrop { opacity: 1; }
+  body.cover-bg.asking #backdrop { opacity: 0; }
+  body.cover-bg:not(.asking) { --muted: rgba(244, 241, 236, .7); } /* grey text stays readable on a bright cover */
+  #panel { position: absolute; left: 106px; width: 254px; opacity: 0; pointer-events: none; } /* left = W - OPEN.d + 26 */
+  body.open #panel { pointer-events: auto; }
+  /* How old the usage is ("5m ago"), tucked in the top-right corner beside the first section's name */
+  #updated { position: absolute; top: 0; right: 0; color: var(--muted); font-size: 10.5px; line-height: 1.3; }
+  body.asking #updated { display: none; }
+  body.open #icon { pointer-events: none; }
+
+  .prov { margin-bottom: 22px; transform: translateX(20px); opacity: 0; transition: transform .7s cubic-bezier(.2, 1.2, .3, 1), opacity .5s; }
+  body.open .prov { transform: none; opacity: 1; }
+  body.open .prov:nth-of-type(2) { transition-delay: .07s; }
+  body.asking .prov { display: none; }
+  body.no-claude #claude, body.no-codex #codex { display: none; } /* switched off in Settings */ /* an approval or question is waiting: show only that */
+  .prov .name { font-size: 10.5px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); margin-bottom: 10px; }
+  .meter + .meter { margin-top: 12px; }
+  .meter .row { display: flex; align-items: baseline; gap: 8px; margin-bottom: 6px; }
+  .meter .reset { flex: 1; color: var(--muted); font-size: 11px; }
+  .meter .pct { font-variant-numeric: tabular-nums; font-weight: 600; }
+  .meter .bar { height: 2px; border-radius: 2px; background: var(--track); overflow: hidden; }
+  .meter .fill { height: 100%; width: 0; background: var(--c); transition: width 1.1s cubic-bezier(.25, 1, .3, 1), background .4s; }
+  .meter.hot .fill { background: var(--hot); }
+  .note, .err { color: var(--muted); font-size: 11px; }
+  .meter .pace { margin-top: 5px; font-size: 11px; color: #ffc65a; } /* "~40m to limit at this pace" */
+  /* Sessions: every Claude Code / Codex session from the last 2 hours, shown when there's more than one */
+  #sessions .s { display: flex; align-items: center; gap: 8px; height: 24px; font-size: 12.5px; }
+  #sessions .dot { width: 6px; height: 6px; flex: none; border-radius: 50%; background: var(--track); }
+  #sessions .working .dot { background: var(--c); animation: wpulse 1.6s ease-in-out infinite; }
+  #sessions .waiting .dot { background: var(--c); }
+  #sessions .p { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #sessions .st { color: var(--muted); font-size: 11.5px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  #sessions .waiting .st { color: var(--c); }
+  /* Lyrics: the current line under the song, up to two lines tall so the panel doesn't jump */
+  #music .ly { height: 2.7em; margin-top: 12px; font-size: 12.5px; line-height: 1.35; overflow: hidden; display: -webkit-box;
+    -webkit-line-clamp: 2; -webkit-box-orient: vertical; transition: opacity .12s; }
+  #music .ly.swap { opacity: 0; }
+  #strip .ly { animation: lyin .35s ease-out; }
+  @keyframes lyin { from { opacity: 0; transform: translateY(3px); } }
+  /* Beat pulse: with live volume, the bars follow it instead of looping */
+  body.live-eq .eq i, body.live-eq #strip .eqs i { animation: none; transition: height .09s linear; }
+  body.live-eq.cover-bg #backdrop img.on { transform: scale(calc(1 + var(--lvl, 0) * .06)); transition: opacity .7s ease, transform .12s linear; }
+  /* Keyboard: numbers on a question's answers, and a hint under the first card */
+  .ask { counter-reset: opt; }
+  body.keys .ask:first-child .opt::before { counter-increment: opt; content: counter(opt); margin-right: 8px; color: var(--muted); font-size: 11px; }
+  .keyhint { display: none; margin-top: 8px; font-size: 10.5px; color: var(--muted); text-align: center; }
+  body.keys .ask:first-child .keyhint { display: block; }
+  #toast { max-width: 320px; }
+  #toast > span:last-child { overflow: hidden; text-overflow: ellipsis; }
+  #strip .wdot { width: 7px; height: 7px; flex: none; border-radius: 50%; background: var(--c); animation: wpulse 1.6s ease-in-out infinite; }
+  @keyframes wpulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: .35; transform: scale(.7); } }
+
+  /* Approval cards: what Claude Code / Codex wants to do, with Deny / Allow. */
+  .ask { margin-bottom: 22px; animation: ask-in .5s cubic-bezier(.2, 1.2, .3, 1); }
+  @keyframes ask-in { from { opacity: 0; transform: translateY(-8px); } }
+  .ask.sent { opacity: .4; pointer-events: none; transition: opacity .2s; }
+  .ask .head { font-size: 12px; color: var(--muted); }
+  .ask .who { font-weight: 600; color: var(--text); }
+  .ask .who.claude { color: var(--claude); }
+  .ask .detail { margin: 8px 0 10px; padding: 8px 10px; border-radius: 8px; background: rgba(255, 255, 255, .06);
+    font: 12px/1.45 "Cascadia Mono", Consolas, monospace; white-space: pre-wrap; word-break: break-all;
+    max-height: 96px; overflow: auto; user-select: text; }
+  /* Action buttons share the row equally: Deny | Allow, or Answer in app | Send. */
+  .ask .btns { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 8px; }
+  .ask button { all: unset; box-sizing: border-box; cursor: pointer; padding: 8px 12px; border-radius: 10px; font-size: 12px; font-weight: 600;
+    text-align: center; transition: background .15s, opacity .15s; }
+  .ask .deny { color: var(--muted); background: rgba(255, 255, 255, .06); }
+  .ask .deny:hover { background: rgba(255, 255, 255, .1); color: var(--text); }
+  .ask .allow { background: var(--text); color: var(--ink); }
+  .ask .allow:hover { opacity: .85; }
+  .ask button:focus-visible { outline: 1px solid var(--muted); }
+  /* Options stack as full-width rows, so long answers wrap instead of squeezing side by side. */
+  .ask .q { margin: 10px 0 8px; font-size: 13px; line-height: 1.4; }
+  .ask .opts { display: grid; gap: 6px; margin-bottom: 12px; }
+  .ask .opt { display: block; text-align: left; padding: 9px 12px; font-size: 12.5px; font-weight: 500; line-height: 1.35;
+    background: rgba(255, 255, 255, .05); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .08); }
+  .ask .opt:hover { background: rgba(255, 255, 255, .09); }
+  .ask .opt.on { background: var(--text); color: var(--ink); box-shadow: none; }
+  .ask .send:disabled { opacity: .35; pointer-events: none; }
+  .note { margin-top: 10px; }
+
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+</style>
+</head>
+<body>
+<svg id="shape"><path id="blob"/></svg>
+<div id="backdrop" aria-hidden="true"><img alt=""><img alt=""></div>
+
+<div id="icon">
+  <div class="mark claude"><span class="spin"></span><svg viewBox="0 0 1200 1200"><path d="M 233.959793 800.214905 L 468.644287 668.536987 L 472.590637 657.100647 L 468.644287 650.738403 L 457.208069 650.738403 L 417.986633 648.322144 L 283.892639 644.69812 L 167.597321 639.865845 L 54.926208 633.825623 L 26.577238 627.785339 L 3.3e-05 592.751709 L 2.73832 575.27533 L 26.577238 559.248352 L 60.724873 562.228149 L 136.187973 567.382629 L 249.422867 575.194763 L 331.570496 580.026978 L 453.261841 592.671082 L 472.590637 592.671082 L 475.328857 584.859009 L 468.724915 580.026978 L 463.570557 575.194763 L 346.389313 495.785217 L 219.543671 411.865906 L 153.100723 363.543762 L 117.181267 339.060425 L 99.060455 316.107361 L 91.248367 266.01355 L 123.865784 230.093994 L 167.677887 233.073853 L 178.872513 236.053772 L 223.248367 270.201477 L 318.040283 343.570496 L 441.825592 434.738342 L 459.946411 449.798706 L 467.194672 444.64447 L 468.080597 441.020203 L 459.946411 427.409485 L 392.617493 305.718323 L 320.778564 181.932983 L 288.80542 130.630859 L 280.348999 99.865845 C 277.369171 87.221436 275.194641 76.590698 275.194641 63.624268 L 312.322174 13.20813 L 332.8591 6.604126 L 382.389313 13.20813 L 403.248352 31.328979 L 434.013519 101.71814 L 483.865753 212.537048 L 561.181274 363.221497 L 583.812134 407.919434 L 595.892639 449.315491 L 600.40271 461.959839 L 608.214783 461.959839 L 608.214783 454.711609 L 614.577271 369.825623 L 626.335632 265.61084 L 637.771851 131.516846 L 641.718201 93.745117 L 660.402832 48.483276 L 697.530334 24.000122 L 726.52356 37.852417 L 750.362549 72 L 747.060486 94.067139 L 732.886047 186.201416 L 705.100708 330.52356 L 686.979919 427.167847 L 697.530334 427.167847 L 709.61084 415.087341 L 758.496704 350.174561 L 840.644348 247.490051 L 876.885925 206.738342 L 919.167847 161.71814 L 946.308838 140.29541 L 997.61084 140.29541 L 1035.38269 196.429626 L 1018.469849 254.416199 L 965.637634 321.422852 L 921.825562 378.201538 L 859.006714 462.765259 L 819.785278 530.41626 L 823.409424 535.812073 L 832.75177 534.92627 L 974.657776 504.724915 L 1051.328979 490.872559 L 1142.818848 475.167786 L 1184.214844 494.496582 L 1188.724854 514.147644 L 1172.456421 554.335693 L 1074.604126 578.496765 L 959.838989 601.449829 L 788.939636 641.879272 L 786.845764 643.409485 L 789.261841 646.389343 L 866.255127 653.637634 L 899.194702 655.409424 L 979.812134 655.409424 L 1129.932861 666.604187 L 1169.154419 692.537109 L 1192.671265 724.268677 L 1188.724854 748.429688 L 1128.322144 779.194641 L 1046.818848 759.865845 L 856.590759 714.604126 L 791.355774 698.335754 L 782.335693 698.335754 L 782.335693 703.731567 L 836.69812 756.885986 L 936.322205 846.845581 L 1061.073975 962.81897 L 1067.436279 991.490112 L 1051.409424 1014.120911 L 1034.496704 1011.704712 L 924.885986 929.234924 L 882.604126 892.107544 L 786.845764 811.48999 L 780.483276 811.48999 L 780.483276 819.946289 L 802.550415 852.241699 L 919.087341 1027.409424 L 925.127625 1081.127686 L 916.671204 1098.604126 L 886.469849 1109.154419 L 853.288696 1103.114136 L 785.073914 1007.355835 L 714.684631 899.516785 L 657.906067 802.872498 L 650.979858 806.81897 L 617.476624 1167.704834 L 601.771851 1186.147705 L 565.530212 1200 L 535.328857 1177.046997 L 519.302124 1139.919556 L 535.328857 1066.550537 L 554.657776 970.792053 L 570.362488 894.68457 L 584.536926 800.134277 L 592.993347 768.724976 L 592.429626 766.630859 L 585.503479 767.516968 L 514.22821 865.369263 L 405.825531 1011.865906 L 320.053711 1103.677979 L 299.516815 1111.812256 L 263.919525 1093.369263 L 267.221497 1060.429688 L 287.114136 1031.114136 L 405.825531 880.107361 L 477.422913 786.52356 L 523.651062 732.483276 L 523.328918 724.671265 L 520.590698 724.671265 L 205.288605 929.395935 L 149.154434 936.644409 L 124.993355 914.01355 L 127.973183 876.885986 L 139.409409 864.80542 L 234.201385 799.570435 L 233.879227 799.8927 Z"/></svg></div>
+  <div class="mark music no-art"><img class="art" alt=""><div class="eq"><i></i><i></i><i></i></div></div>
+  <div class="mark codex"><svg viewBox="0 0 320 320"><path id="knot" d="m297.06 130.97c7.26-21.79 4.76-45.66-6.85-65.48-17.46-30.4-52.56-46.04-86.84-38.68-15.25-17.18-37.16-26.95-60.13-26.81-35.04-.08-66.13 22.48-76.91 55.82-22.51 4.61-41.94 18.7-53.31 38.67-17.59 30.32-13.58 68.54 9.92 94.54-7.26 21.79-4.76 45.66 6.85 65.48 17.46 30.4 52.56 46.04 86.84 38.68 15.24 17.18 37.16 26.95 60.13 26.8 35.06.09 66.16-22.49 76.94-55.86 22.51-4.61 41.94-18.7 53.31-38.67 17.57-30.32 13.55-68.51-9.94-94.51zm-120.28 168.11c-14.03.02-27.62-4.89-38.39-13.88.49-.26 1.34-.73 1.89-1.07l63.72-36.8c3.26-1.85 5.26-5.32 5.24-9.07v-89.83l26.93 15.55c.29.14.48.42.52.74v74.39c-.04 33.08-26.83 59.9-59.91 59.97zm-128.84-55.03c-7.03-12.14-9.56-26.37-7.15-40.18.47.28 1.3.79 1.89 1.13l63.72 36.8c3.23 1.89 7.23 1.89 10.47 0l77.79-44.92v31.1c.02.32-.13.63-.38.83l-64.41 37.19c-28.69 16.52-65.33 6.7-81.92-21.95zm-16.77-139.09c7-12.16 18.05-21.46 31.21-26.29 0 .55-.03 1.52-.03 2.2v73.61c-.02 3.74 1.98 7.21 5.23 9.06l77.79 44.91-26.93 15.55c-.27.18-.61.21-.91.08l-64.42-37.22c-28.63-16.58-38.45-53.21-21.95-81.89zm221.26 51.49-77.79-44.92 26.93-15.54c.27-.18.61-.21.91-.08l64.42 37.19c28.68 16.57 38.51 53.26 21.94 81.94-7.01 12.14-18.05 21.44-31.2 26.28v-75.81c.03-3.74-1.96-7.2-5.2-9.06zm26.8-40.34c-.47-.29-1.3-.79-1.89-1.13l-63.72-36.8c-3.23-1.89-7.23-1.89-10.47 0l-77.79 44.92v-31.1c-.02-.32.13-.63.38-.83l64.41-37.16c28.69-16.55 65.37-6.7 81.91 22 6.99 12.12 9.52 26.31 7.15 40.1zm-168.51 55.43-26.94-15.55c-.29-.14-.48-.42-.52-.74v-74.39c.02-33.12 26.89-59.96 60.01-59.94 14.01 0 27.57 4.92 38.34 13.88-.49.26-1.33.73-1.89 1.07l-63.72 36.8c-3.26 1.85-5.26 5.31-5.24 9.06l-.04 89.79zm14.63-31.54 34.65-20.01 34.65 20v40.01l-34.65 20-34.65-20z"/></svg><svg class="hi" viewBox="0 0 320 320" aria-hidden="true"><use href="#knot"/></svg></div>
+</div>
+
+<div id="toast" aria-live="polite"></div>
+
+<div id="clip"><div id="strip"></div><div id="panel">
+  <small id="updated"></small>
+  <div id="asks"></div>
+  <section class="prov" id="sessions" hidden><div class="name">Sessions</div><div class="body"></div></section>
+  <section class="prov" id="music" hidden>
+    <div class="name">Now playing</div>
+    <div class="np"><img class="cover" alt=""><div class="meta"><div class="t"></div><div class="a"></div></div></div>
+    <div class="ly" hidden></div>
+    <div class="mbar"><div class="mfill"></div></div>
+    <div class="times"><span class="cur"></span><span class="dur"></span></div>
+    <div class="ctl">
+      <button class="prev" aria-label="Previous"><svg viewBox="0 0 24 24"><path d="M6 5h2v14H6zM20 5v14L9 12z"/></svg></button>
+      <button class="play" aria-label="Play or pause"><svg viewBox="0 0 24 24"><path class="ic" d="M8 5v14l11-7z"/></svg></button>
+      <button class="next" aria-label="Next"><svg viewBox="0 0 24 24"><path d="M16 5h2v14h-2zM4 5v14l11-7z"/></svg></button>
+    </div>
+  </section>
+  <section class="prov" id="claude" style="--c: var(--claude)"><div class="name">Claude Code<span class="plan"></span></div><div class="body"></div></section>
+  <section class="prov" id="codex" style="--c: var(--codex)"><div class="name">ChatGPT<span class="plan"></span></div><div class="body"></div></section>
+</div></div>
+
+<script src="demo.js"></script>
+<script>
+const $ = (s) => document.querySelector(s);
+const body = document.body, blob = $('#blob'), icon = $('#icon');
+const W = 380, CY = 380; // fixed layout size (tab: 380 x 760); main.js zooms the whole page to the real window size
+
+// Which look: 'tab' (right edge), 'island' (floating pill at the top centre) or 'notch' (hangs from the top edge).
+const STYLE = new URLSearchParams(location.search).get('style') || 'tab', TOPSTYLE = STYLE !== 'tab', NOTCH = STYLE === 'notch';
+body.classList.add('style-' + STYLE);
+body.classList.toggle('top', TOPSTYLE);
+
+// ---- Island / Notch geometry (page units; the window is 480 wide, centred at the top of the screen) ----
+// w/h: size, r: corner radius, s: the notch's curved shoulders into the screen edge (0 for the island).
+const TW = 480, TCX = TW / 2, TTOP = NOTCH ? 0 : 10;
+const T_IDLE = NOTCH ? { w: 150, h: 26, r: 13, s: 10 } : { w: 112, h: 32, r: 16, s: 0 };    // empty, like a phone's island
+const T_STRIP = NOTCH ? { w: 280, h: 36, r: 16, s: 12 } : { w: 280, h: 38, r: 19, s: 0 };  // live activity
+const T_OPEN = NOTCH ? { w: 360, h: 220, r: 26, s: 16 } : { w: 360, h: 220, r: 28, s: 0 }; // panel / cards (h fits the content)
+function topPath({ w, h, r, s: sh }) {
+  const x0 = TCX - w / 2, x1 = TCX + w / 2, y0 = TTOP, y1 = TTOP + h;
+  sh = Math.max(0, sh); r = Math.max(0, Math.min(r, h / 2, w / 2, h - sh));
+  const k = 0.5523 * r;
+  if (!NOTCH) // floating pill / rounded card
+    return `M${x0 + r},${y0} L${x1 - r},${y0} C${x1 - r + k},${y0} ${x1},${y0 + r - k} ${x1},${y0 + r} L${x1},${y1 - r}`
+      + ` C${x1},${y1 - r + k} ${x1 - r + k},${y1} ${x1 - r},${y1} L${x0 + r},${y1} C${x0 + r - k},${y1} ${x0},${y1 - r + k} ${x0},${y1 - r}`
+      + ` L${x0},${y0 + r} C${x0},${y0 + r - k} ${x0 + r - k},${y0} ${x0 + r},${y0} Z`;
+  // notch: shoulders curve out of the top edge, straight sides, rounded bottom corners
+  const q = 0.5523 * sh;
+  return `M${x0 - sh},-4 L${x0 - sh},0 C${x0 - sh + q},0 ${x0},${sh - q} ${x0},${sh} L${x0},${y1 - r}`
+    + ` C${x0},${y1 - r + k} ${x0 + r - k},${y1} ${x0 + r},${y1} L${x1 - r},${y1} C${x1 - r + k},${y1} ${x1},${y1 - r + k} ${x1},${y1 - r}`
+    + ` L${x1},${sh} C${x1},${sh - q} ${x1 + sh - q},0 ${x1 + sh},0 L${x1 + sh},-4 Z`;
+}
+// What the closed island shows: an empty pill, or a strip of live activity.
+let stripKind = '', transient = null, transientTimer = 0, workSince = 0;
+const closedTop = () => (stripContent() ? T_STRIP : T_IDLE);
+
+// ---- Shape morph: each dimension is its own spring, so the blob stretches organically ----
+// d: depth from screen edge, h: half-height, c: cap corner radius, fx/fy: fillet width/height into the screen edge.
+// t: fillet tension. 0.45 ≈ quarter ellipse (scooped), → 1 = straight diagonal.
+// a: where the neck joins the round cap, in degrees up from its leftmost point (90 = flat at the very top).
+// Closed = round head with necks joining partway down its side, flaring into the screen edge (fitted to the Photoshop mock).
+const CLOSED = { d: 38, h: 25, c: 25, a: 62, fx: 26, fy: 40, t: 0.6 }, OPEN = { d: 300, h: 172, c: 30, a: 90, fx: 64, fy: 80, t: 0.45 };
+let PANEL_TOP;
+// Open shape hugs whatever the panel currently contains (errors are shorter than full meters).
+function fit() {
+  const panel = $('#panel');
+  if (TOPSTYLE) {
+    T_OPEN.h = Math.min(580, Math.ceil(panel.offsetHeight + 34));
+    panel.style.top = (TTOP + 16) + 'px';
+    return kick();
+  }
+  OPEN.h = Math.min(CY - 40, Math.ceil((panel.offsetHeight + 40) / 2));
+  OPEN.fy = Math.min(80, CY - OPEN.h - 4);
+  PANEL_TOP = CY - OPEN.h + 22;
+  panel.style.top = PANEL_TOP + 'px';
+  kick();
+}
+const SPRING = { d: [210, 25], h: [170, 23], c: [200, 26], fx: [180, 24], fy: [140, 21], t: [180, 26], a: [180, 26],
+  w: [190, 23], r: [200, 26], s: [200, 26] }; // [stiffness, damping]; w/r/s are the island's
+const BASE = TOPSTYLE ? T_IDLE : CLOSED;
+const s = {}; for (const k in BASE) s[k] = { x: BASE[k], v: 0 };
+let target = BASE, raf = 0, last = 0;
+
+// Every segment meets the next with a shared tangent (arcs + straight runs + fillets), so no kinks at any size.
+function path({ d, h, c, a, fx, fy, t }) {
+  const L = W - d, j = Math.max(0, Math.min(1, t)), r = Math.max(5, Math.min(90, a)) * Math.PI / 180;
+  c = Math.max(0, Math.min(c, h, d));
+  const sa = Math.sin(r), ca = Math.cos(r), kk = 4 / 3 * Math.tan(r / 4) * c; // cubic handle for an arc of angle a
+  const half = (sg) => { // sg -1 = top half, +1 = bottom half; T points along the cap tangent toward the screen edge
+    const cy = CY + sg * (h - c), J = [L + c - c * ca, cy + sg * c * sa], T = [sa, sg * ca];
+    const run = Math.max(0, W - fx - J[0]) / sa, F = [J[0] + T[0] * run, J[1] + T[1] * run];
+    const f = Math.max(0, Math.min(fy, sg < 0 ? F[1] - 1 : 2 * CY - F[1] - 1)), g = (1 - j) * (W - F[0]);
+    return { cy, J, T, F, A: [W, F[1] + sg * f], C1: [W, F[1] + sg * j * f], C2: [F[0] + T[0] * g, F[1] + T[1] * g] };
+  };
+  const u = half(-1), b = half(1), P = (p) => `${p[0]},${p[1]}`;
+  return `M${W + 4},${u.A[1]} L${P(u.A)} C${P(u.C1)} ${P(u.C2)} ${P(u.F)} L${P(u.J)}`
+    + ` C${u.J[0] - u.T[0] * kk},${u.J[1] - u.T[1] * kk} ${L},${u.cy - kk} ${L},${u.cy} L${L},${b.cy}`
+    + ` C${L},${b.cy + kk} ${b.J[0] - b.T[0] * kk},${b.J[1] - b.T[1] * kk} ${P(b.J)} L${P(b.F)}`
+    + ` C${P(b.C2)} ${P(b.C1)} ${P(b.A)} L${W + 4},${b.A[1]} Z`;
+}
+
+function frame(t) {
+  const dt = Math.min((t - (last || t)) / 1000, 1 / 30); last = t;
+  let moving = false;
+  for (const k in s) {
+    const [K, D] = SPRING[k], p = s[k];
+    for (let i = 0; i < 4; i++) { p.v += (-K * (p.x - target[k]) - D * p.v) * dt / 4; p.x += p.v * dt / 4; }
+    if (Math.abs(p.v) > 0.05 || Math.abs(p.x - target[k]) > 0.05) moving = true;
+  }
+  const v = Object.fromEntries(Object.entries(s).map(([k, p]) => [k, p.x]));
+  const outline = TOPSTYLE ? topPath(v) : path(v);
+  blob.setAttribute('d', outline);
+  $('#clip').style.clipPath = $('#backdrop').style.clipPath = `path("${outline}")`;
+  if (TOPSTYLE) { placeTop(v); raf = moving ? requestAnimationFrame(frame) : 0; if (!moving) last = 0; return; }
+  const p = Math.max(0, (v.d - CLOSED.d) / (OPEN.d - CLOSED.d)); // 0 closed → 1 open (overshoots a little)
+  // Height and width spring separately, so use the smaller progress: content never spills outside the blob.
+  const ph = Math.max(0, (v.h - CLOSED.h) / (OPEN.h - CLOSED.h)), q = Math.min(p, ph, 1);
+  const x0 = W - CLOSED.d / 2; // closed: midway between the screen edge and the tip, so the logo never runs off-screen
+  // Icon rides the live shape from the cap centre toward the top-left, fading out as the panel opens.
+  const x = x0 + (W - v.d + 44 - x0) * q, y = CY + (CY - v.h + 42 - CY) * q;
+  icon.style.transform = `translate(${x}px, ${y}px)`;
+  icon.style.opacity = Math.max(0, 1 - q / 0.35);
+  const panel = $('#panel'); // pinned to the blob's live top-left corner
+  panel.style.opacity = Math.max(0, Math.min(1, (q - 0.7) / 0.3));
+  panel.style.transform = `translate(${OPEN.d - v.d}px, ${OPEN.h - v.h}px)`;
+  raf = moving ? requestAnimationFrame(frame) : 0;
+  if (!moving) last = 0;
+}
+const kick = () => { if (!raf) raf = requestAnimationFrame(frame); };
+
+// Island / Notch: the icon sits in the strip's left slot (working spinner / spinning cover), the strip text beside it;
+// both fade out as the panel opens, and the panel fades in once the card is nearly full size.
+function placeTop(v) {
+  const x0 = TCX - v.w / 2, q = Math.max(0, Math.min(1, (v.h - T_STRIP.h) / (T_OPEN.h - T_STRIP.h)));
+  const withIcon = stripKind === 'work' || stripKind === 'music', lineH = Math.min(v.h, T_STRIP.h);
+  icon.style.transform = `translate(${x0 + 24}px, ${TTOP + lineH / 2}px) scale(.74)`;
+  icon.style.opacity = withIcon && !open ? Math.max(0, 1 - q / 0.35) : 0;
+  const st = $('#strip');
+  st.style.left = (x0 + (withIcon ? 44 : 18)) + 'px';
+  st.style.width = Math.max(0, v.w - (withIcon ? 60 : 36)) + 'px';
+  st.style.top = TTOP + 'px';
+  st.style.height = lineH + 'px';
+  st.classList.toggle('show', !!stripKind && !open && v.w > T_STRIP.w * 0.8);
+  const panel = $('#panel');
+  panel.style.opacity = Math.max(0, Math.min(1, (q - 0.7) / 0.3));
+  panel.style.transform = 'none';
+}
+
+// The strip's content, most important first: a note (done / alert / new song), work in progress, music playing.
+const elapsed = () => { const sec = Math.max(0, Math.round((Date.now() - (workSince || Date.now())) / 1000)); return Math.floor(sec / 60) + ':' + String(sec % 60).padStart(2, '0'); };
+let waitingFor = null; // { ai, project } while Claude waits for your reply
+function stripContent() {
+  if (transient) return transient;
+  if (cfg.waitNotes && waitingFor && !body.classList.contains('working')) {
+    const w = waitingFor;
+    return { kind: 'wait', color: w.ai === 'claude' ? 'var(--claude)' : 'var(--codex)',
+      html: `<span class="wdot"></span><span class="grow">${w.ai === 'claude' ? 'Claude' : 'Codex'} is waiting for you${w.project ? ` <span class="mut">· ${esc(w.project)}</span>` : ''}</span>` };
+  }
+  if (body.classList.contains('working'))
+    return { kind: 'work', html: `<span class="grow">${ai === 'claude' ? 'Claude' : 'Codex'} is working</span><span class="timer">${elapsed()}</span>` };
+  if (cfg.music && !media.none && media.status === 'playing' && media.title)
+    return { kind: 'music', html: (lyricNow ? `<span class="grow ly">${esc(lyricNow)}</span>` // the line being sung, else the song
+      : `<span class="grow">${esc(media.title)}${media.artist ? ` <span class="mut">· ${esc(media.artist)}</span>` : ''}</span>`) + '<span class="eqs"><i></i><i></i><i></i></span>' };
+  return null;
+}
+function updateTop() {
+  if (!TOPSTYLE) return;
+  const c = stripContent(), html = c?.html || '', st = $('#strip');
+  stripKind = c?.kind || '';
+  if (st.dataset.html !== html) { st.innerHTML = html; st.dataset.html = html; }
+  st.style.setProperty('--c', c?.color || 'var(--text)');
+  if (!open) target = c ? T_STRIP : T_IDLE;
+  kick();
+}
+setInterval(() => { if (stripKind === 'work') updateTop(); }, 1000); // tick the work timer
+
+// ---- Open / close: hover to peek, pin to keep open ----
+let open = false, pinned = false, inside = false, timer;
+function setOpen(o) {
+  if (o === open) return;
+  open = o; target = o ? (TOPSTYLE ? T_OPEN : OPEN) : (TOPSTYLE ? closedTop() : CLOSED);
+  body.classList.toggle('open', o);
+  if (o) { window.widget.refresh(); setTimeout(paintBars, 180); } else paintBars();
+  updateTop();
+  kick();
+}
+function setInside(v) {
+  if (v === inside) return;
+  inside = v; body.classList.toggle('hover', v);
+  window.widget.interactive(v);
+  clearTimeout(timer);
+  timer = setTimeout(() => setOpen(v || pinned || asks.length > 0), v ? 90 : 450);
+}
+// Window ignores the mouse (click-through) but still gets moves, so hit-test the painted shape ourselves.
+addEventListener('mousemove', (e) => {
+  const el = document.elementFromPoint(e.clientX, e.clientY);
+  setInside(!!el && el !== body && el !== document.documentElement);
+});
+document.addEventListener('mouseleave', () => setInside(false));
+function togglePin() { pinned = !pinned; body.classList.toggle('pinned', pinned); if (pinned) setOpen(true); }
+// Click the tab to keep the panel open; click an empty part of the open panel to let it close again.
+icon.addEventListener('click', togglePin);
+blob.addEventListener('click', () => { if (!open) togglePin(); });
+$('#panel').addEventListener('click', (e) => { if (pinned && !e.target.closest('button, .ask')) togglePin(); });
+addEventListener('contextmenu', (e) => { e.preventDefault(); window.widget.menu(); });
+
+// ---- Settings (from SneakPeek Settings; these defaults apply until main sends the real ones) ----
+let cfg = { claude: true, codex: true, sounds: true, doneNotes: true, doneMinSec: 10, alerts: true, alertLevels: [80, 90], waitNotes: true, paceNotes: true, resetNotes: true };
+window.widget.onSettings((c) => {
+  cfg = c;
+  body.classList.toggle('no-claude', !c.claude);
+  body.classList.toggle('no-codex', !c.codex);
+  body.classList.toggle('keys', c.shortcuts !== false);
+  renderSessions(); tickLyrics(true);
+  if (usage) render(); else fit();
+  renderMusic();
+});
+
+// ---- Data ----
+let usage = null;
+const fmt = (ms) => { if (ms == null) return ''; const m = Math.max(0, Math.round(ms / 60000));
+  return m < 60 ? `${m}m` : m < 1440 ? `${Math.floor(m / 60)}h ${m % 60}m` : `${Math.floor(m / 1440)}d ${Math.floor((m % 1440) / 60)}h`; };
+const esc = (t) => String(t).replace(/[&<>"]/g, (ch) => `&#${ch.charCodeAt(0)};`);
+
+function render() {
+  if (!usage) return;
+  for (const id of ['claude', 'codex']) {
+    const d = usage[id], el = $('#' + id);
+    el.querySelector('.plan').textContent = d.ok && d.plan ? ' · ' + d.plan : '';
+    el.querySelector('.body').innerHTML = d.ok
+      ? d.windows.map((w) => { const eta = cfg.paceNotes ? etaMs(id, w) : null; return `<div class="meter${w.pct >= 90 ? ' hot' : ''}" data-pct="${w.pct}">
+          <div class="row"><span>${esc(w.label)}</span><span class="reset">${w.resetsAt ? fmt(w.resetsAt - Date.now()) : ''}</span>
+            <span class="pct">${open ? w.pct : 0}%</span></div>
+          <div class="bar"><div class="fill" style="width:${open ? w.pct : 0}%"></div></div>
+          ${eta ? `<div class="pace">~${fmt(eta)} to limit at this pace</div>` : ''}</div>`; }).join('')
+        + (d.staleAt ? `<div class="note">${esc(d.staleWhy || 'Not updated')} · from ${fmt(Date.now() - d.staleAt)} ago</div>` : '')
+      : `<div class="err">${esc(d.error)}</div>`;
+  }
+  paintTitle();
+  updatedLabel();
+  fit();
+  if (open) paintBars();
+}
+
+// ---- Pace: how long until a limit runs out at the current rate ----
+// The last 90 minutes of readings per limit, kept in localStorage so a restart doesn't lose them.
+const store = (k, fallback) => { try { return JSON.parse(localStorage.getItem(k) || 'null') ?? fallback; } catch { return fallback; } };
+const keep = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} };
+const NAME = { claude: 'Claude', codex: 'ChatGPT' };
+let pace = store('sneakpeek-pace', {});
+function recordPace(u) {
+  const now = Date.now();
+  for (const id of ['claude', 'codex']) {
+    const d = u[id];
+    if (!d?.ok || d.staleAt) continue;
+    for (const w of d.windows) {
+      const k = id + ':' + w.label;
+      let h = pace[k] || [];
+      const lastR = h.length ? h[h.length - 1].r : 0;
+      if (lastR && w.resetsAt && Math.abs(w.resetsAt - lastR) > 10 * 60000) h = []; // a new limit window starts fresh
+      const lastP = h.length ? h[h.length - 1] : null;
+      if (!lastP || lastP.p !== w.pct || now - lastP.t > 5 * 60000) h.push({ t: now, p: w.pct, r: w.resetsAt || 0 });
+      pace[k] = h.filter((x) => now - x.t < 90 * 60000).slice(-60);
+    }
+  }
+  keep('sneakpeek-pace', pace);
+}
+// Time until 100% at the last hour's pace; null when it won't run out before the reset, or there's too little to go on.
+function etaMs(id, w) {
+  const h = (pace[id + ':' + w.label] || []).filter((x) => Date.now() - x.t < 60 * 60000);
+  if (h.length < 2 || w.pct >= 100) return null;
+  const a = h[0], b = h[h.length - 1], span = b.t - a.t, used = b.p - a.p;
+  if (span < 8 * 60000 || used < 3) return null;
+  const eta = (100 - w.pct) / (used / span);
+  return w.resetsAt && Date.now() + eta >= w.resetsAt ? null : eta;
+}
+// Early warning, once per limit window: it will run out within 30 minutes at this pace.
+function checkPace(u) {
+  if (!cfg.paceNotes) return;
+  const warned = store('sneakpeek-pace-warned', {});
+  for (const id of ['claude', 'codex']) {
+    const d = u[id];
+    if (!d?.ok || !cfg[id] || d.staleAt) continue;
+    for (const w of d.windows) {
+      const k = id + ':' + w.label, eta = etaMs(id, w);
+      if (!eta || eta > 30 * 60000 || w.pct >= 90 || warned[k] === (w.resetsAt || 1)) continue;
+      warned[k] = w.resetsAt || 1;
+      chime([[880, 0], [880, 0.16]], 0.1);
+      toast(`<span class="ok">!</span><span><b>${NAME[id]}</b> ${esc(w.label)} runs out in ~${fmt(eta)} at this pace</span>`, '#ffc65a', 8000);
+    }
+  }
+  keep('sneakpeek-pace-warned', warned);
+}
+// "Limit is fresh": a limit that was at least 70% used has reset (new window, or usage dropped sharply).
+function checkResets(u) {
+  const lastSeen = store('sneakpeek-last', {});
+  for (const id of ['claude', 'codex']) {
+    const d = u[id];
+    if (!d?.ok || d.staleAt) continue;
+    for (const w of d.windows) {
+      const k = id + ':' + w.label, prev = lastSeen[k];
+      const reset = prev && prev.p >= 70 && ((w.resetsAt && prev.r && w.resetsAt - prev.r > 10 * 60000) || w.pct <= prev.p - 40);
+      if (reset && cfg.resetNotes && cfg[id]) {
+        chime([[1318.5, 0], [1760, 0.12], [2093, 0.24]], 0.08);
+        toast(`<span class="ok">↺</span><span><b>${NAME[id]}</b> ${esc(w.label)} limit is fresh</span>`, id === 'claude' ? 'var(--claude)' : 'var(--codex)', 7000);
+      }
+      lastSeen[k] = { p: w.pct, r: w.resetsAt || 0 };
+    }
+  }
+  keep('sneakpeek-last', lastSeen);
+}
+
+// Bars and counters grow from zero every time the panel opens.
+function paintBars() {
+  document.querySelectorAll('.meter').forEach((m, i) => {
+    const pct = open ? +m.dataset.pct : 0, fill = m.querySelector('.fill'), out = m.querySelector('.pct');
+    fill.style.transitionDelay = open ? `${i * 60}ms` : '0ms';
+    fill.style.width = pct + '%';
+    const from = parseInt(out.textContent) || 0, t0 = performance.now() + (open ? i * 60 : 0);
+    (function tick(now) {
+      const k = Math.min(1, Math.max(0, (now - t0) / 900)), e = 1 - Math.pow(1 - k, 3);
+      out.textContent = Math.round(from + (pct - from) * e) + '%';
+      if (k < 1) requestAnimationFrame(tick);
+    })(performance.now());
+  });
+}
+
+// Hover title: which AI is shown and its tightest limit.
+function paintTitle() {
+  const d = usage?.[ai], max = d?.ok ? Math.max(0, ...d.windows.map((w) => w.pct)) : 0;
+  icon.title = `${ai === 'claude' ? 'Claude' : 'ChatGPT'}${d?.ok ? `: ${max}% used` : ''}${body.classList.contains('working') ? ' · working' : ''}`;
+}
+
+function updatedLabel() {
+  if (!usage) return;
+  const m = Math.round((Date.now() - usage.at) / 60000);
+  $('#updated').textContent = m < 1 ? '' : `${m}m ago`;
+}
+setInterval(() => { updatedLabel(); if (open) render(); }, 30000);
+
+// Claude Code's spinner: · ✢ ✳ ✶ ✻ ✽ and back, one step every 120ms. (︎ keeps ✳ from turning into an emoji.)
+const GLYPHS = ['·', '✢', '✳︎', '✶', '✻', '✽'];
+const STEPS = [...GLYPHS, ...GLYPHS.slice(1, -1).reverse()];
+let spinTimer = 0, step = 0;
+function setWorking(on) {
+  body.classList.toggle('working', on);
+  if (on && !spinTimer) $('.spin').textContent = STEPS[0];
+  if (on && !spinTimer) spinTimer = setInterval(() => {
+    step = (step + 1) % STEPS.length;
+    $('.spin').textContent = STEPS[step];
+  }, 120);
+  if (!on) { clearInterval(spinTimer); spinTimer = 0; step = 0; }
+  updateTop();
+}
+
+// ---- Approvals: pop the panel open while Claude Code / Codex is waiting on Allow / Deny ----
+let asks = [], askKey = '';
+const who = (r) => `<span class="who ${r.ai === 'claude' ? 'claude' : ''}">${r.ai === 'claude' ? 'Claude' : 'Codex'}</span>`;
+const card = (r) => r.questions
+  ? `<div class="ask" data-id="${esc(r.id)}"><div class="head">${who(r)} asks · ${esc(r.project)}</div>
+      ${r.questions.map((q, qi) => `<div class="q">${esc(q.question)}</div>
+        <div class="opts" data-q="${qi}" data-multi="${q.multiSelect ? 1 : 0}">${q.options.map((o) => `<button class="opt">${esc(o)}</button>`).join('')}</div>`).join('')}
+      <div class="btns"><button class="skip deny">Answer in app</button>${r.questions.length > 1 || r.questions[0].multiSelect ? '<button class="send allow" disabled>Send</button>' : ''}</div>
+      <div class="keyhint">Ctrl+Alt+number to pick</div></div>`
+  : `<div class="ask" data-id="${esc(r.id)}"><div class="head">${who(r)} wants to ${esc(r.verb)} · ${esc(r.project)}</div>
+      <div class="detail">${esc(r.detail)}</div>
+      <div class="btns"><button class="deny">Deny</button><button class="allow">Allow</button></div>
+      <div class="keyhint">Ctrl+Alt+Y allow · Ctrl+Alt+N deny</div></div>`;
+// Soft two-note chimes made with Web Audio, so no sound file is needed.
+// New card: rising E6 -> A6. Done: falling A6 -> E6, a little quieter.
+let audio;
+function chime(notes = [[1318.5, 0], [1760, 0.12]], vol = 0.12) {
+  if (!cfg.sounds) return 'muted';
+  try {
+    audio ??= new AudioContext();
+    const t = audio.currentTime;
+    notes.forEach(([freq, at]) => {
+      const osc = audio.createOscillator(), gain = audio.createGain();
+      osc.type = 'sine'; osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0, t + at);
+      gain.gain.linearRampToValueAtTime(vol, t + at + 0.015);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t + at + 0.6);
+      osc.connect(gain).connect(audio.destination);
+      osc.start(t + at); osc.stop(t + at + 0.65);
+    });
+    return audio.state;
+  } catch { return 'failed'; }
+}
+
+function renderAsks(list) {
+  const had = asks.length, seen = new Set(asks.map((r) => r.id));
+  if (list.some((r) => !seen.has(r.id))) chime();
+  asks = list;
+  const key = list.map((r) => r.id).join();
+  if (key !== askKey) { askKey = key; $('#asks').innerHTML = list.map(card).join(''); } // redraw only when the set changes
+  body.classList.toggle('asking', list.length > 0);
+  if (list.length) { clearTimeout(timer); setOpen(true); }
+  else if (had && !pinned && !inside) setOpen(false);
+  fit();
+}
+$('#asks').addEventListener('click', (e) => {
+  const b = e.target.closest('button'), el = e.target.closest('.ask');
+  if (!b || !el) return;
+  const id = el.dataset.id, r = asks.find((x) => x.id === id);
+  const send = (answer) => { el.classList.add('sent'); window.widget.answer(id, answer); };
+  if (b.classList.contains('opt')) {
+    const group = b.parentElement;
+    if (group.dataset.multi !== '1') group.querySelectorAll('.opt').forEach((o) => o !== b && o.classList.remove('on'));
+    b.classList.toggle('on');
+    const picks = [...el.querySelectorAll('.opts')].map((g) => [...g.querySelectorAll('.opt.on')].map((o) => o.textContent));
+    const answers = () => Object.fromEntries(r.questions.map((q, i) => [q.question, picks[i].join(', ')]));
+    const sendBtn = el.querySelector('.send');
+    if (!sendBtn) return send({ answers: answers() }); // one single-choice question: a click answers it
+    sendBtn.disabled = picks.some((p) => !p.length);
+    sendBtn.onclick = () => send({ answers: answers() });
+  } else if (b.classList.contains('skip')) send('skip');
+  else if (!b.classList.contains('send')) send(b.classList.contains('allow') ? 'allow' : 'deny');
+});
+window.widget.onRequests(renderAsks);
+
+// ---- Toast beside the tab: "done" notes and usage alerts ----
+let toastTimer;
+function toast(html, color, ms) {
+  if (TOPSTYLE) {
+    transient = { kind: 'note', html, color };
+    clearTimeout(transientTimer);
+    transientTimer = setTimeout(() => { transient = null; updateTop(); }, ms);
+    return updateTop();
+  }
+  const t = $('#toast');
+  t.style.setProperty('--c', color);
+  t.innerHTML = html;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), ms);
+}
+
+// Done: Claude Code / Codex finished a stretch of work.
+// What Claude did in that turn, in a few words: "edited 4 files, ran tests".
+const plural = (n, w) => `${n} ${w}${n > 1 ? 's' : ''}`;
+const didText = (d) => !d ? '' : [d.files?.length ? 'edited ' + plural(d.files.length, 'file') : '',
+  d.tests ? 'ran tests' : d.cmds ? 'ran ' + plural(d.cmds, 'command') : ''].filter(Boolean).join(', ');
+window.widget.onDone(({ ai: who, project, ranMs, did }) => {
+  if (!cfg.doneNotes || ranMs < cfg.doneMinSec * 1000) return; // quick replies stay quiet
+  chime([[1760, 0], [1318.5, 0.14]], 0.09);
+  const what = didText(did);
+  toast(`<span class="ok">✓</span><span><b>${who === 'claude' ? 'Claude' : 'Codex'}</b> is done${project ? ' · ' + esc(project) : ''}${what ? ' · ' + what : ''}</span>`,
+    who === 'claude' ? 'var(--claude)' : 'var(--codex)', what ? 7000 : 5000);
+});
+
+// ---- Sessions: when more than one Claude Code / Codex session is in use, list them with what each is doing ----
+let sessions = [];
+const ago = (ms) => ms < 60_000 ? 'just now' : ms < 3600_000 ? Math.floor(ms / 60_000) + 'm ago' : Math.floor(ms / 3600_000) + 'h ago';
+function renderSessions() {
+  const sec = $('#sessions'), list = sessions.filter((s) => cfg[s.ai]), show = cfg.sessions !== false && list.length > 1;
+  const resize = sec.hidden === show || sec.querySelectorAll('.s').length !== (show ? list.length : 0); // re-measure the panel after filling it
+  sec.hidden = !show;
+  sec.querySelector('.body').innerHTML = !show ? '' : list.map((s) => {
+    const st = s.working ? 'working ' + mmss(Date.now() - s.since) : s.waiting ? 'waiting for you' : 'done ' + ago(Date.now() - s.at);
+    const files = s.did?.files?.length ? didText(s.did) + ': ' + s.did.files.join(', ') : '';
+    return `<div class="s ${s.working ? 'working' : s.waiting ? 'waiting' : ''}" style="--c: var(--${s.ai})" title="${esc(files)}">`
+      + `<span class="dot"></span><span class="p">${esc(s.project || (s.ai === 'claude' ? 'Claude Code' : 'Codex'))}</span><span class="st">${st}</span></div>`;
+  }).join('');
+  if (resize) fit();
+}
+window.widget.onSessions((l) => { sessions = l; renderSessions(); });
+setInterval(() => { if (open && !$('#sessions').hidden) renderSessions(); }, 1000);
+
+// ---- Keyboard (Ctrl+Alt+...): P opens or closes the panel; Y / N allow or deny the first card; 1-9 pick an answer ----
+window.widget.onKey((k) => {
+  if (k === 'peek') {
+    if (open) { if (pinned) togglePin(); setOpen(false); }
+    else if (!pinned) togglePin(); else setOpen(true);
+    return;
+  }
+  const el = $('#asks .ask:not(.sent)');
+  if (!el) return;
+  const b = k === 'y' ? el.querySelector('.allow:not(.send)') : k === 'n' ? el.querySelector('.deny') : el.querySelectorAll('.opt')[+k - 1];
+  b?.click();
+});
+
+// Usage alerts: once per level (80%, then 90%) for each limit window. What's been alerted is kept in
+// localStorage, so a restart doesn't repeat it; a new window (the reset time moves on) starts fresh.
+function checkAlerts(u) {
+  if (!cfg.alerts) return;
+  const ALERT_LEVELS = cfg.alertLevels;
+  let seen = {};
+  try { seen = JSON.parse(localStorage.getItem('sneakpeek-alerts') || '{}'); } catch {}
+  let worst = null;
+  for (const id of ['claude', 'codex']) {
+    const d = u[id];
+    if (!d?.ok || !cfg[id]) continue;
+    for (const w of d.windows) {
+      const key = id + ':' + w.label, prev = seen[key];
+      const level = ALERT_LEVELS.filter((l) => w.pct >= l).pop() || 0;
+      const sameWindow = prev && (!w.resetsAt || !prev.resetsAt || Math.abs(w.resetsAt - prev.resetsAt) < 10 * 60000);
+      const already = sameWindow ? prev.level : 0;
+      if (level > already && (!worst || w.pct > worst.pct)) worst = { id, label: w.label, pct: w.pct, level };
+      seen[key] = { level: sameWindow ? Math.max(level, already) : level, resetsAt: w.resetsAt || prev?.resetsAt || null };
+      if (sameWindow && level < already && w.pct < already - 10) seen[key].level = level; // usage really dropped: allow re-alerting
+    }
+  }
+  try { localStorage.setItem('sneakpeek-alerts', JSON.stringify(seen)); } catch {}
+  if (!worst) return;
+  chime([[880, 0], [880, 0.16]], 0.1);
+  toast(`<span class="ok">!</span><span><b>${worst.id === 'claude' ? 'Claude' : 'ChatGPT'}</b> ${esc(worst.label)} at ${worst.pct}%</span>`,
+    worst.level >= 90 ? 'var(--hot)' : '#ffc65a', 8000);
+}
+
+// ---- Music: now playing from Windows' media controls (Spotify, browsers, Apple Music, VLC...) ----
+let media = { none: true }, mediaArt = null, mediaArtSmall = null, lastTrack = null;
+const mmss = (ms) => { const sec = Math.max(0, Math.round(ms / 1000)); return Math.floor(sec / 60) + ':' + String(sec % 60).padStart(2, '0'); };
+const APPS = [[/spotify/i, 'Spotify'], [/chrome/i, 'Chrome'], [/msedge/i, 'Edge'], [/firefox/i, 'Firefox'], [/zunemusic|mediaplayer/i, 'Media Player'], [/applemusic|itunes/i, 'Apple Music'], [/vlc/i, 'VLC']];
+const appName = (id = '') => (APPS.find(([re]) => re.test(id)) || [])[1] || '';
+const mediaPos = () => (media.status === 'playing' ? Math.min(media.dur || Infinity, media.pos + (Date.now() - media.at)) : media.pos);
+function paintProgress() {
+  if (media.none || !media.dur) { $('#music .mfill').style.width = '0'; $('#music .cur').textContent = $('#music .dur').textContent = ''; return; }
+  const p = mediaPos();
+  $('#music .mfill').style.width = Math.min(100, (p / media.dur) * 100) + '%';
+  $('#music .cur').textContent = mmss(p);
+  $('#music .dur').textContent = mmss(media.dur);
+}
+// Two cover layers: a new cover loads into the hidden one, then fades in over the old one.
+let backdropSrc = null;
+function setBackdrop(src) {
+  if (src === backdropSrc) return;
+  backdropSrc = src;
+  const imgs = [...document.querySelectorAll('#backdrop img')], next = imgs.find((i) => !i.classList.contains('on')) || imgs[0];
+  next.onload = () => imgs.forEach((i) => i.classList.toggle('on', i === next));
+  next.src = src;
+}
+function renderMusic() {
+  const show = cfg.music && !media.none && !!media.title;
+  const sec = $('#music'), was = !sec.hidden;
+  sec.hidden = !show;
+  if (show) {
+    sec.querySelector('.t').textContent = media.title;
+    sec.querySelector('.a').textContent = [media.artist, appName(media.app)].filter(Boolean).join(' · ');
+    sec.querySelector('.cover').src = mediaArt || '';
+    sec.querySelector('.cover').style.visibility = mediaArt ? 'visible' : 'hidden';
+    sec.querySelector('.ic').setAttribute('d', media.status === 'playing' ? 'M7 5h4v14H7zM13 5h4v14h-4z' : 'M8 5v14l11-7z');
+    paintProgress();
+  }
+  // The tab shows the music while it plays, unless an AI is busy (that's more important).
+  const tabMusic = show && media.status === 'playing' && !body.classList.contains('working');
+  body.classList.toggle('music', tabMusic);
+  body.classList.toggle('playing', show && media.status === 'playing');
+  const coverBg = cfg.coverBg !== false && show && media.status === 'playing' && !!mediaArt;
+  body.classList.toggle('cover-bg', coverBg);
+  if (coverBg) setBackdrop(mediaArt);
+  $('.mark.music .art').src = mediaArtSmall || mediaArt || '';
+  $('.mark.music').classList.toggle('no-art', !mediaArt);
+  if (tabMusic) icon.title = media.title + (media.artist ? ' · ' + media.artist : '');
+  else paintTitle();
+  if (was !== show) fit();
+  updateTop();
+}
+// ---- Lyrics: the line being sung now, from synced lyrics (main fetches them) ----
+let lyricLines = null, lyricKey = '', lyricNow = null; // lyricNow: null = no lyrics, '' = between lines
+window.widget.onLyrics((l) => { lyricKey = l?.key || ''; lyricLines = l?.lines?.length ? l.lines : null; tickLyrics(true); });
+function currentLyric() {
+  if (cfg.lyrics === false || !lyricLines || media.none || (media.artist + '|' + media.title) !== lyricKey) return null;
+  const p = mediaPos() + 250; // a quarter second early, so the line appears as it's sung
+  let line = null;
+  for (const l of lyricLines) { if (l.t <= p) line = l; else break; }
+  return line ? line.text : '';
+}
+function tickLyrics(force) {
+  const cur = currentLyric(), ly = $('#music .ly'), has = cur !== null;
+  if (ly.hidden === has) { ly.hidden = !has; fit(); }
+  if (cur === lyricNow && !force) return;
+  lyricNow = cur;
+  if (has) { ly.classList.add('swap'); setTimeout(() => { ly.textContent = cur || '♪'; ly.classList.remove('swap'); }, 120); }
+  updateTop();
+}
+setInterval(() => { if (lyricLines && media.status === 'playing') tickLyrics(); }, 200);
+
+// ---- Beat pulse: the output volume (~20 a second while playing) drives the music bars and the cover background ----
+let lastLevel = 0;
+const BAR = [0.75, 1, 0.6]; // each bar reacts a little differently
+window.widget.onLevel((v) => {
+  const l = Math.min(1, Math.sqrt(v) * 1.15);
+  lastLevel = Date.now();
+  body.classList.add('live-eq');
+  body.style.setProperty('--lvl', l.toFixed(3));
+  for (const group of document.querySelectorAll('.eq, #strip .eqs')) {
+    const max = group.classList.contains('eq') ? 18 : 13;
+    group.querySelectorAll('i').forEach((bar, i) => { bar.style.height = Math.max(3, max * l * BAR[i] * (0.8 + Math.random() * 0.4)) + 'px'; });
+  }
+});
+setInterval(() => { // volume stopped coming (paused, or switched off): back to the looping bars
+  if (lastLevel && Date.now() - lastLevel > 1500) {
+    lastLevel = 0; body.classList.remove('live-eq');
+    document.querySelectorAll('.eq i, #strip .eqs i').forEach((b) => { b.style.height = ''; });
+  }
+}, 1000);
+
+window.widget.onMedia((m) => {
+  if (m.artOnly) { mediaArt = m.art; mediaArtSmall = m.artSmall; return renderMusic(); } // re-sized after a size change
+  if (m.none) { media = { none: true }; mediaArt = mediaArtSmall = null; }
+  else {
+    if ('art' in m) { mediaArt = m.art || null; mediaArtSmall = m.artSmall || null; } // covers come pre-sized, only when they change
+    const track = m.app + '|' + m.title + '|' + m.artist;
+    if (lastTrack && track !== lastTrack && m.status === 'playing' && cfg.music && cfg.songNotes && !open)
+      toast('<span class="ok">♪</span><span><b>' + esc(m.title) + '</b>' + (m.artist ? ' · ' + esc(m.artist) : '') + '</span>', 'var(--text)', 4000);
+    lastTrack = track;
+    media = m;
+  }
+  renderMusic();
+});
+$('#music .ctl').addEventListener('click', (e) => {
+  const b = e.target.closest('button');
+  if (b) window.widget.mediaCmd(b.classList.contains('play') ? 'toggle' : b.classList.contains('next') ? 'next' : 'prev');
+});
+setInterval(() => { if (open && media.status === 'playing') paintProgress(); }, 1000);
+
+let ai = 'claude';
+body.dataset.ai = ai;
+window.widget.onActivity((a) => {
+  ai = a.ai; body.dataset.ai = ai; workSince = a.since || workSince;
+  const was = waitingFor; waitingFor = a.waiting || null;
+  if (was && !waitingFor && !TOPSTYLE && /is waiting for you/.test($('#toast').textContent)) $('#toast').classList.remove('show'); // you replied
+  if (waitingFor && !was && cfg.waitNotes) { // just started waiting: one soft double note, and a note beside the tab
+    chime([[1174.7, 0], [1174.7, 0.18]], 0.08);
+    if (!TOPSTYLE) toast(`<span class="ok">●</span><span><b>${waitingFor.ai === 'claude' ? 'Claude' : 'Codex'}</b> is waiting for you${waitingFor.project ? ' · ' + esc(waitingFor.project) : ''}</span>`,
+      waitingFor.ai === 'claude' ? 'var(--claude)' : 'var(--codex)', 8000);
+  }
+  setWorking(a.working); paintTitle(); renderMusic();
+});
+// `sneakpeek notify "text"` from any script or terminal
+window.widget.onNote(({ text }) => {
+  chime([[1318.5, 0], [1568, 0.1]], 0.09);
+  toast(`<span class="ok">●</span><span>${esc(text)}</span>`, '#a99bff', 6000);
+});
+window.widget.onUsage((u) => { usage = u; recordPace(u); render(); checkAlerts(u); checkPace(u); checkResets(u); });
+if (TOPSTYLE) { const p = $('#panel'); p.style.left = (TCX - T_OPEN.w / 2 + 20) + 'px'; p.style.width = (T_OPEN.w - 40) + 'px'; }
+fit();
+updateTop();
+</script>
+</body>
+</html>

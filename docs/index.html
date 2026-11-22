@@ -93,6 +93,15 @@
   .screen { position: relative; border-radius: 18px; background: #16171b; border: 1px solid var(--line); overflow: hidden; aspect-ratio: 5 / 4;
     background-image: radial-gradient(rgba(255, 255, 255, .055) 1px, transparent 1.2px); background-size: 14px 14px; }
   .screen img { position: absolute; right: 0; top: 50%; height: 122%; width: auto; max-width: none; transform: translateY(-50%); }
+  /* The live demo: the real widget (site/widget.html) with made-up data, scaled to fit its screen */
+  .demo-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+  .demo-hint { font-size: 13px; color: var(--muted); }
+  .seg { display: flex; padding: 3px; gap: 2px; border-radius: 10px; background: var(--panel); box-shadow: inset 0 0 0 1px var(--line); }
+  .seg button { padding: 6px 12px; border: 0; border-radius: 8px; background: none; color: var(--muted); font: 600 12.5px "Inter", sans-serif; cursor: pointer; transition: color .15s, background .15s; }
+  .seg button:hover { color: var(--text); }
+  .seg button[aria-checked="true"] { background: var(--text); color: var(--ink); }
+  .screen.demo { aspect-ratio: auto; height: clamp(440px, 64vh, 640px); }
+  .demo iframe { position: absolute; border: 0; background: transparent; transform-origin: 0 0; }
   .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
   .pair .screen { aspect-ratio: 1; }
   .pair .screen img { height: 165%; }
@@ -193,7 +202,15 @@
       <p>Claude Code and ChatGPT usage with reset times, updated <b>after every reply</b>. A heads-up at 80% and 90%, and how long you have left at your current pace.</p>
       <p>Your music sits on top: song, cover and controls for Spotify, YouTube and other players.</p>
     </div>
-    <div class="screen rise"><img src="site/panel.png" alt="The SneakPeek panel: a song playing, then Claude Code and ChatGPT usage bars with reset times" width="608" height="992"></div>
+    <div class="demo-wrap rise">
+      <div class="demo-bar">
+        <span class="demo-hint">Live demo. Hover it, or click to keep it open.</span>
+        <div class="seg" role="radiogroup" aria-label="Widget style">
+          <button role="radio" aria-checked="true" data-style="tab">Edge tab</button><button role="radio" aria-checked="false" data-style="island">Island</button><button role="radio" aria-checked="false" data-style="notch">Notch</button>
+        </div>
+      </div>
+      <div class="screen demo" id="demo"><iframe id="demo-frame" src="site/widget.html?style=tab" title="Live demo of the SneakPeek widget, with made-up data" loading="lazy"></iframe></div>
+    </div>
   </section>
 
   <section class="show split" aria-labelledby="h-ask">
@@ -302,6 +319,24 @@ if (!still) setInterval(() => {
   inner.classList.add('out');
   setTimeout(() => { st = (st + 1) % STATES.length; showState(st); inner.classList.remove('out'); }, 200);
 }, 3400);
+
+// ---- Live demo: the widget's own layout size per style, scaled to fit the screen frame (tab on the right edge, others top centre) ----
+const LAYOUT = { tab: [380, 760], island: [480, 600], notch: [480, 600] };
+const demo = document.getElementById('demo'), frame = document.getElementById('demo-frame');
+let demoStyle = 'tab';
+function placeDemo() {
+  const [w, h] = LAYOUT[demoStyle], fw = demo.clientWidth, fh = demo.clientHeight, s = Math.min(1, fh / h, fw / w);
+  Object.assign(frame.style, { width: w + 'px', height: h + 'px', top: (demoStyle === 'tab' ? (fh - h * s) / 2 : 0) + 'px',
+    left: (demoStyle === 'tab' ? fw - w * s : (fw - w * s) / 2) + 'px', transform: `scale(${s})` });
+}
+document.querySelectorAll('.seg [data-style]').forEach((b) => b.addEventListener('click', () => {
+  demoStyle = b.dataset.style;
+  document.querySelectorAll('.seg [data-style]').forEach((x) => x.setAttribute('aria-checked', x === b));
+  frame.src = 'site/widget.html?style=' + demoStyle;
+  placeDemo();
+}));
+addEventListener('resize', placeDemo);
+placeDemo();
 
 // ---- The ASCII eye ----
 // The logo is sampled into a grid, made into a thin 3D slab (front, back and side walls, each with a normal),
