@@ -16,6 +16,7 @@
     --hot-bg: rgba(255, 107, 107, .1); --hot-bg-hover: rgba(255, 107, 107, .18); --hot-edge: rgba(255, 107, 107, .35);
   }
   html, body { margin: 0; background: var(--ink); color: var(--text); font: 13px/1.45 "Inter", "Segoe UI", sans-serif; font-feature-settings: "cv11", "ss01"; }
+  [hidden] { display: none !important; } /* the hidden attribute always wins over a component's own display */
   ::selection { background: rgba(169, 155, 255, .35); color: var(--text); }
   ::-webkit-scrollbar { width: 10px; }
   ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, .14); border-radius: 99px; border: 3px solid var(--ink); }
