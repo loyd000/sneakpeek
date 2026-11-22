@@ -5,6 +5,7 @@ contextBridge.exposeInMainWorld('widget', {
   onActivity: (fn) => ipcRenderer.on('activity', (_, a) => fn(a)),
   onRequests: (fn) => ipcRenderer.on('requests', (_, r) => fn(r)),
   onDone: (fn) => ipcRenderer.on('done', (_, d) => fn(d)),
+  onNote: (fn) => ipcRenderer.on('note', (_, n) => fn(n)),
   onSettings: (fn) => ipcRenderer.on('settings', (_, s) => fn(s)),
   onMedia: (fn) => ipcRenderer.on('media', (_, m) => fn(m)),
   mediaCmd: (cmd) => ipcRenderer.send('media:cmd', cmd),

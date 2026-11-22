@@ -2,6 +2,7 @@
 // The `sneakpeek` command (installed by `npm install -g github:loyd000/sneakpeek`).
 //   sneakpeek           start SneakPeek (or open its Settings if it's already running)
 //   sneakpeek update    install the latest version from GitHub and restart SneakPeek
+//   sneakpeek notify "Tests done"   show a note in SneakPeek, e.g. at the end of a script: npm test; sneakpeek notify "Tests done"
 //   sneakpeek --quiet   start without the spinning logo
 //   sneakpeek --remove  take SneakPeek's hooks, status line and startup entry out of Claude Code, Codex and Windows.
 //                       Run this before `npm uninstall -g sneakpeek`, or the hooks keep pointing at a deleted folder.
@@ -21,6 +22,7 @@ if (args.includes('--help') || args.includes('-h')) {
   console.log([
     'sneakpeek           start SneakPeek (or open Settings if it is already running)',
     'sneakpeek update    install the latest version from GitHub and restart SneakPeek',
+    'sneakpeek notify "Tests done"   show a note in SneakPeek (e.g. at the end of a script)',
     'sneakpeek --quiet   start without the spinning logo',
     'sneakpeek --remove  remove its hooks and startup entry before uninstalling',
   ].join('\n'));
@@ -37,6 +39,20 @@ if (args.includes('--remove')) {
   } catch { /* no startup entry: nothing to remove */ }
   console.log(problems ? 'Fix the problem above, then run this again.' : 'Done. You can now run: npm uninstall -g sneakpeek');
   process.exit(problems ? 1 : 0);
+}
+
+if (args[0] === 'notify') {
+  const text = args.slice(1).filter((a) => a !== '--quiet').join(' ').trim();
+  if (!text) { console.error('Usage: sneakpeek notify "Tests done"'); process.exit(1); }
+  let running = false;
+  try { running = alive(Number(fs.readFileSync(path.join(os.homedir(), '.sneakpeek', 'sneakpeek.pid'), 'utf8'))); } catch {}
+  // A small file SneakPeek picks up, shows and deletes (it ignores notes older than 2 minutes).
+  const dir = path.join(os.homedir(), '.sneakpeek', 'notify'), f = path.join(dir, `${Date.now()}-${process.pid}.json`);
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(f + '.tmp', JSON.stringify({ text: text.slice(0, 200), at: Date.now() }));
+  fs.renameSync(f + '.tmp', f);
+  if (!running) console.log("SneakPeek isn't running, so this note shows only if it starts in the next 2 minutes.");
+  process.exit(0);
 }
 
 (async () => {

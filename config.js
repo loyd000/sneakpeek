@@ -11,6 +11,9 @@ const DEFAULTS = {
   doneNotes: true,       // "Claude is done" note when work finishes
   doneMinSec: 10,        // ...only for work that ran at least this long
   alerts: true,          // usage alerts
+  waitNotes: true,       // "Claude is waiting for you"
+  paceNotes: true,       // time until a limit runs out at the current pace
+  resetNotes: true,      // a used-up limit has reset
   alertLevels: [80, 90], // ...at these percentages
   style: 'tab',          // 'tab' (right edge), 'island' (floating pill at the top) or 'notch' (hangs from the top edge)
   scale: 0.75,           // widget size
@@ -23,6 +26,7 @@ function clean(s) {
   const levels = Array.isArray(s.alertLevels) ? [...new Set(s.alertLevels.filter((n) => Number.isInteger(n) && n > 0 && n < 100))].sort((a, b) => a - b) : d.alertLevels;
   return {
     claude: bool('claude'), codex: bool('codex'), music: bool('music'), songNotes: bool('songNotes'), sounds: bool('sounds'), doneNotes: bool('doneNotes'), alerts: bool('alerts'),
+    waitNotes: bool('waitNotes'), paceNotes: bool('paceNotes'), resetNotes: bool('resetNotes'),
     doneMinSec: num(s.doneMinSec, 0, 600, d.doneMinSec),
     alertLevels: levels.length ? levels.slice(0, 3) : d.alertLevels,
     style: ['tab', 'island', 'notch'].includes(s.style) ? s.style : d.style,

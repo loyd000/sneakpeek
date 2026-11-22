@@ -27,6 +27,9 @@ Hover the tab and it opens into a panel showing:
 - **Which AI is working.** Claude's spinner or ChatGPT's shimmer while it works, and a quiet "done" note when it finishes.
 - **Approvals and questions.** When Claude Code or Codex asks permission, or Claude asks you a question, answer it right in the panel.
 - **What's playing.** Song, spinning cover art and play/pause/skip for Spotify, YouTube, Apple Music and other players.
+- **"Claude is waiting for you."** When Claude has finished and is sitting there waiting for your reply, SneakPeek tells you, and the note clears as soon as you answer.
+- **Your pace.** "~25m to limit at this pace" under any limit you'll run out of before it resets, with a heads-up when it's under 30 minutes. And a quick note when a limit you'd used up is fresh again.
+- **Notes from your own scripts.** `sneakpeek notify "Tests done"` pops a note in SneakPeek, e.g. `npm test; sneakpeek notify "Tests done"`.
 
 <p align="center">
   <img src="docs/panel.png" width="250" alt="The panel with music and Claude and ChatGPT usage">

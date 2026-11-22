@@ -121,6 +121,9 @@
     <div class="levels"><input class="num" type="number" min="1" max="99" step="1" id="lvl1" aria-label="First alert level, percent">%<input class="num" type="number" min="1" max="99" step="1" id="lvl2" aria-label="Second alert level, percent">%</div>
     <label class="sw"><input type="checkbox" data-set="alerts"></label></div>
   <p class="note" id="levels-msg" role="status" hidden></p>
+  <div class="row"><div class="txt"><div class="name">"Waiting for you" notes</div><div class="desc">When Claude has finished and is waiting for your reply</div></div><label class="sw"><input type="checkbox" data-set="waitNotes"></label></div>
+  <div class="row"><div class="txt"><div class="name">Pace forecast</div><div class="desc">How long until a limit runs out at your current pace, with a warning when it's under 30 minutes</div></div><label class="sw"><input type="checkbox" data-set="paceNotes"></label></div>
+  <div class="row"><div class="txt"><div class="name">Limit reset notes</div><div class="desc">When a limit you'd mostly used up resets</div></div><label class="sw"><input type="checkbox" data-set="resetNotes"></label></div>
 
   <h2>Widget</h2>
   <div class="row"><div class="txt"><div class="name" id="style-name">Style</div><div class="desc" id="style-desc">Where SneakPeek sits and how it looks</div></div>

@@ -36,6 +36,18 @@ const ACTIVITY = path.join(os.homedir(), '.sneakpeek', 'activity.json');
 // Approvals: ask.js (a PermissionRequest hook) drops <id>.json here and waits for <id>.answer.
 const REQS = path.join(os.homedir(), '.sneakpeek', 'requests');
 const PIDFILE = path.join(os.homedir(), '.sneakpeek', 'sneakpeek.pid');
+const NOTIFY = path.join(os.homedir(), '.sneakpeek', 'notify');
+function notes() {
+  let files = [];
+  try { files = fs.readdirSync(NOTIFY).filter((f) => f.endsWith('.json')).sort(); } catch { return; }
+  for (const f of files) {
+    const p = path.join(NOTIFY, f);
+    let n = null;
+    try { n = JSON.parse(fs.readFileSync(p, 'utf8')); } catch {}
+    try { fs.unlinkSync(p); } catch {}
+    if (n && typeof n.text === 'string' && Date.now() - (n.at || 0) < 120_000) send('note', { text: n.text.slice(0, 200) });
+  }
+}
 let win, settingsWin, tray, last = null;
 // Send to the widget window, unless it's gone (e.g. while quitting): sending to a destroyed window throws.
 const send = (channel, data) => { if (win && !win.isDestroyed()) win.webContents.send(channel, data); };
@@ -186,7 +198,7 @@ let lastActivity = '', wasWorking = null; // session -> working, as of the last 
 function activity() {
   let f = {};
   try { f = JSON.parse(fs.readFileSync(ACTIVITY, 'utf8')); } catch {}
-  let latest = null, busy = null;
+  let latest = null, busy = null, waiting = null;
   const now = new Map();
   for (const ai of ['claude', 'codex'].filter((x) => cfg[x])) for (const [sid, s] of Object.entries(f[ai] || {})) {
     now.set(ai + ':' + sid, s.working);
@@ -194,9 +206,12 @@ function activity() {
     if (wasWorking?.get(ai + ':' + sid) && !s.working) send('done', { ai, project: s.project || '', ranMs: s.at - (s.since ?? s.at) });
     if (!latest || s.at > latest.at) latest = { ai, at: s.at };
     if (s.working && Date.now() - s.at < STALE_MS && (!busy || s.at > busy.at)) busy = { ai, at: s.at, since: s.since || s.at };
+    // Waiting for your reply (Claude's idle notification); forgotten after 3 hours.
+    if (s.waiting && Date.now() - s.at < 3 * 3600_000 && (!waiting || s.at > waiting.at)) waiting = { ai, at: s.at, project: s.project || '' };
   }
   wasWorking = now;
-  const a = { ai: (busy || latest)?.ai || (cfg.claude ? 'claude' : 'codex'), working: !!busy, since: busy?.since || 0 };
+  const a = { ai: (busy || latest)?.ai || (cfg.claude ? 'claude' : 'codex'), working: !!busy, since: busy?.since || 0,
+    waiting: waiting && { ai: waiting.ai, project: waiting.project } };
   const key = JSON.stringify(a);
   if (key !== lastActivity) { lastActivity = key; send('activity', a); }
 }
@@ -243,6 +258,7 @@ app.whenReady().then(() => {
     win.webContents.setZoomFactor(cfg.scale); send('settings', cfg); lastActivity = ''; activity(); requests();
     if (last) send('usage', last);            // after a style change the page reloads: show everything again at once
     if (lastMedia) send('media', lastMedia);
+    notes();                                  // notes sent just before SneakPeek started
   });
   loadWidget();
   win.once('ready-to-show', () => {
@@ -263,7 +279,7 @@ app.whenReady().then(() => {
   setInterval(activity, 10_000); // expire stale "working" sessions
 
   // statusline.js rewrites the feed after every Claude Code reply; activity.js rewrites activity on every hook.
-  let t, rt;
+  let t, rt, nt;
   const watch = (dir, file, fn) => {
     try {
       fs.mkdirSync(dir, { recursive: true });
@@ -273,6 +289,7 @@ app.whenReady().then(() => {
   watch(path.join(os.homedir(), '.claude'), 'ai-limits-feed.json', () => { clearTimeout(t); t = setTimeout(refresh, 500); });
   watch(path.dirname(ACTIVITY), 'activity.json', activity);
   try { fs.watch(REQS, () => { clearTimeout(rt); rt = setTimeout(requests, 50); }); } catch {}
+  try { fs.mkdirSync(NOTIFY, { recursive: true }); fs.watch(NOTIFY, () => { clearTimeout(nt); nt = setTimeout(notes, 50); }); } catch {}
 });
 
 // Only a well-formed answer for a request that's still waiting gets written:

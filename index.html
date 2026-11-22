@@ -125,6 +125,9 @@
   .meter .fill { height: 100%; width: 0; background: var(--c); transition: width 1.1s cubic-bezier(.25, 1, .3, 1), background .4s; }
   .meter.hot .fill { background: var(--hot); }
   .note, .err { color: var(--muted); font-size: 11px; }
+  .meter .pace { margin-top: 5px; font-size: 11px; color: #ffc65a; } /* "~40m to limit at this pace" */
+  #strip .wdot { width: 7px; height: 7px; flex: none; border-radius: 50%; background: var(--c); animation: wpulse 1.6s ease-in-out infinite; }
+  @keyframes wpulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: .35; transform: scale(.7); } }
 
   /* Approval cards: what Claude Code / Codex wants to do, with Deny / Allow. */
   .ask { margin-bottom: 22px; animation: ask-in .5s cubic-bezier(.2, 1.2, .3, 1); }
@@ -320,8 +323,14 @@ function placeTop(v) {
 
 // The strip's content, most important first: a note (done / alert / new song), work in progress, music playing.
 const elapsed = () => { const sec = Math.max(0, Math.round((Date.now() - (workSince || Date.now())) / 1000)); return Math.floor(sec / 60) + ':' + String(sec % 60).padStart(2, '0'); };
+let waitingFor = null; // { ai, project } while Claude waits for your reply
 function stripContent() {
   if (transient) return transient;
+  if (cfg.waitNotes && waitingFor && !body.classList.contains('working')) {
+    const w = waitingFor;
+    return { kind: 'wait', color: w.ai === 'claude' ? 'var(--claude)' : 'var(--codex)',
+      html: `<span class="wdot"></span><span class="grow">${w.ai === 'claude' ? 'Claude' : 'Codex'} is waiting for you${w.project ? ` <span class="mut">· ${esc(w.project)}</span>` : ''}</span>` };
+  }
   if (body.classList.contains('working'))
     return { kind: 'work', html: `<span class="grow">${ai === 'claude' ? 'Claude' : 'Codex'} is working</span><span class="timer">${elapsed()}</span>` };
   if (cfg.music && !media.none && media.status === 'playing' && media.title)
@@ -369,7 +378,7 @@ $('#pin').addEventListener('click', togglePin);
 addEventListener('contextmenu', (e) => { e.preventDefault(); window.widget.menu(); });
 
 // ---- Settings (from SneakPeek Settings; these defaults apply until main sends the real ones) ----
-let cfg = { claude: true, codex: true, sounds: true, doneNotes: true, doneMinSec: 10, alerts: true, alertLevels: [80, 90] };
+let cfg = { claude: true, codex: true, sounds: true, doneNotes: true, doneMinSec: 10, alerts: true, alertLevels: [80, 90], waitNotes: true, paceNotes: true, resetNotes: true };
 window.widget.onSettings((c) => {
   cfg = c;
   body.classList.toggle('no-claude', !c.claude);
@@ -390,10 +399,11 @@ function render() {
     const d = usage[id], el = $('#' + id);
     el.querySelector('.plan').textContent = d.ok && d.plan ? ' · ' + d.plan : '';
     el.querySelector('.body').innerHTML = d.ok
-      ? d.windows.map((w) => `<div class="meter${w.pct >= 90 ? ' hot' : ''}" data-pct="${w.pct}">
+      ? d.windows.map((w) => { const eta = cfg.paceNotes ? etaMs(id, w) : null; return `<div class="meter${w.pct >= 90 ? ' hot' : ''}" data-pct="${w.pct}">
           <div class="row"><span>${esc(w.label)}</span><span class="reset">${w.resetsAt ? fmt(w.resetsAt - Date.now()) : ''}</span>
             <span class="pct">${open ? w.pct : 0}%</span></div>
-          <div class="bar"><div class="fill" style="width:${open ? w.pct : 0}%"></div></div></div>`).join('')
+          <div class="bar"><div class="fill" style="width:${open ? w.pct : 0}%"></div></div>
+          ${eta ? `<div class="pace">~${fmt(eta)} to limit at this pace</div>` : ''}</div>`; }).join('')
         + (d.staleAt ? `<div class="note">${esc(d.staleWhy || 'Not updated')} · from ${fmt(Date.now() - d.staleAt)} ago</div>` : '')
       : `<div class="err">${esc(d.error)}</div>`;
   }
@@ -401,6 +411,74 @@ function render() {
   updatedLabel();
   fit();
   if (open) paintBars();
+}
+
+// ---- Pace: how long until a limit runs out at the current rate ----
+// The last 90 minutes of readings per limit, kept in localStorage so a restart doesn't lose them.
+const store = (k, fallback) => { try { return JSON.parse(localStorage.getItem(k) || 'null') ?? fallback; } catch { return fallback; } };
+const keep = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} };
+const NAME = { claude: 'Claude', codex: 'ChatGPT' };
+let pace = store('sneakpeek-pace', {});
+function recordPace(u) {
+  const now = Date.now();
+  for (const id of ['claude', 'codex']) {
+    const d = u[id];
+    if (!d?.ok || d.staleAt) continue;
+    for (const w of d.windows) {
+      const k = id + ':' + w.label;
+      let h = pace[k] || [];
+      const lastR = h.length ? h[h.length - 1].r : 0;
+      if (lastR && w.resetsAt && Math.abs(w.resetsAt - lastR) > 10 * 60000) h = []; // a new limit window starts fresh
+      const lastP = h.length ? h[h.length - 1] : null;
+      if (!lastP || lastP.p !== w.pct || now - lastP.t > 5 * 60000) h.push({ t: now, p: w.pct, r: w.resetsAt || 0 });
+      pace[k] = h.filter((x) => now - x.t < 90 * 60000).slice(-60);
+    }
+  }
+  keep('sneakpeek-pace', pace);
+}
+// Time until 100% at the last hour's pace; null when it won't run out before the reset, or there's too little to go on.
+function etaMs(id, w) {
+  const h = (pace[id + ':' + w.label] || []).filter((x) => Date.now() - x.t < 60 * 60000);
+  if (h.length < 2 || w.pct >= 100) return null;
+  const a = h[0], b = h[h.length - 1], span = b.t - a.t, used = b.p - a.p;
+  if (span < 8 * 60000 || used < 3) return null;
+  const eta = (100 - w.pct) / (used / span);
+  return w.resetsAt && Date.now() + eta >= w.resetsAt ? null : eta;
+}
+// Early warning, once per limit window: it will run out within 30 minutes at this pace.
+function checkPace(u) {
+  if (!cfg.paceNotes) return;
+  const warned = store('sneakpeek-pace-warned', {});
+  for (const id of ['claude', 'codex']) {
+    const d = u[id];
+    if (!d?.ok || !cfg[id] || d.staleAt) continue;
+    for (const w of d.windows) {
+      const k = id + ':' + w.label, eta = etaMs(id, w);
+      if (!eta || eta > 30 * 60000 || w.pct >= 90 || warned[k] === (w.resetsAt || 1)) continue;
+      warned[k] = w.resetsAt || 1;
+      chime([[880, 0], [880, 0.16]], 0.1);
+      toast(`<span class="ok">!</span><span><b>${NAME[id]}</b> ${esc(w.label)} runs out in ~${fmt(eta)} at this pace</span>`, '#ffc65a', 8000);
+    }
+  }
+  keep('sneakpeek-pace-warned', warned);
+}
+// "Limit is fresh": a limit that was at least 70% used has reset (new window, or usage dropped sharply).
+function checkResets(u) {
+  const lastSeen = store('sneakpeek-last', {});
+  for (const id of ['claude', 'codex']) {
+    const d = u[id];
+    if (!d?.ok || d.staleAt) continue;
+    for (const w of d.windows) {
+      const k = id + ':' + w.label, prev = lastSeen[k];
+      const reset = prev && prev.p >= 70 && ((w.resetsAt && prev.r && w.resetsAt - prev.r > 10 * 60000) || w.pct <= prev.p - 40);
+      if (reset && cfg.resetNotes && cfg[id]) {
+        chime([[1318.5, 0], [1760, 0.12], [2093, 0.24]], 0.08);
+        toast(`<span class="ok">↺</span><span><b>${NAME[id]}</b> ${esc(w.label)} limit is fresh</span>`, id === 'claude' ? 'var(--claude)' : 'var(--codex)', 7000);
+      }
+      lastSeen[k] = { p: w.pct, r: w.resetsAt || 0 };
+    }
+  }
+  keep('sneakpeek-last', lastSeen);
 }
 
 // Bars and counters grow from zero every time the panel opens.
@@ -619,8 +697,23 @@ setInterval(() => { if (open && media.status === 'playing') paintProgress(); }, 
 
 let ai = 'claude';
 body.dataset.ai = ai;
-window.widget.onActivity((a) => { ai = a.ai; body.dataset.ai = ai; workSince = a.since || workSince; setWorking(a.working); paintTitle(); renderMusic(); });
-window.widget.onUsage((u) => { usage = u; render(); checkAlerts(u); });
+window.widget.onActivity((a) => {
+  ai = a.ai; body.dataset.ai = ai; workSince = a.since || workSince;
+  const was = waitingFor; waitingFor = a.waiting || null;
+  if (was && !waitingFor && !TOPSTYLE && /is waiting for you/.test($('#toast').textContent)) $('#toast').classList.remove('show'); // you replied
+  if (waitingFor && !was && cfg.waitNotes) { // just started waiting: one soft double note, and a note beside the tab
+    chime([[1174.7, 0], [1174.7, 0.18]], 0.08);
+    if (!TOPSTYLE) toast(`<span class="ok">●</span><span><b>${waitingFor.ai === 'claude' ? 'Claude' : 'Codex'}</b> is waiting for you${waitingFor.project ? ' · ' + esc(waitingFor.project) : ''}</span>`,
+      waitingFor.ai === 'claude' ? 'var(--claude)' : 'var(--codex)', 8000);
+  }
+  setWorking(a.working); paintTitle(); renderMusic();
+});
+// `sneakpeek notify "text"` from any script or terminal
+window.widget.onNote(({ text }) => {
+  chime([[1318.5, 0], [1568, 0.1]], 0.09);
+  toast(`<span class="ok">●</span><span>${esc(text)}</span>`, '#a99bff', 6000);
+});
+window.widget.onUsage((u) => { usage = u; recordPace(u); render(); checkAlerts(u); checkPace(u); checkResets(u); });
 if (TOPSTYLE) { const p = $('#panel'); p.style.left = (TCX - T_OPEN.w / 2 + 20) + 'px'; p.style.width = (T_OPEN.w - 40) + 'px'; }
 fit();
 updateTop();
