@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, screen, Menu, Tray, nativeImage } = require('electron');
+const { app, BrowserWindow, ipcMain, screen, Menu, Tray, nativeImage, shell } = require('electron');
 const { spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs');
@@ -184,7 +184,7 @@ app.on('will-quit', stopMedia);
 function openSettings() {
   if (settingsWin && !settingsWin.isDestroyed()) { settingsWin.show(); settingsWin.focus(); return; }
   settingsWin = new BrowserWindow({
-    width: 460, height: 680, minWidth: 400, minHeight: 420, title: 'SneakPeek Settings', icon: path.join(__dirname, 'assets', 'sneakpeek.ico'),
+    width: 700, height: 560, minWidth: 620, minHeight: 460, title: 'SneakPeek Settings', icon: path.join(__dirname, 'assets', 'sneakpeek.ico'),
     backgroundColor: '#0a0a0a', autoHideMenuBar: true, show: false,
     webPreferences: { preload: path.join(__dirname, 'settings-preload.js') },
   });
@@ -345,3 +345,4 @@ ipcMain.handle('int:removeAll', (e) => guarded(e, () => integrations.removeAll()
 ipcMain.handle('startup:set', (e, on) => guarded(e, () => setStartup(!!on)));
 ipcMain.handle('update:check', async (e) => { if (fromSettings(e)) await checkForUpdate(); return guarded(e, () => {}); });
 ipcMain.handle('update:run', (e) => guarded(e, runUpdate));
+ipcMain.on('open:repo', (e) => { if (fromSettings(e)) shell.openExternal('https://github.com/loyd000/sneakpeek'); });

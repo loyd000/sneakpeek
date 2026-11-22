@@ -8,5 +8,6 @@ contextBridge.exposeInMainWorld('sneakpeek', {
   setStartup: (on) => ipcRenderer.invoke('startup:set', on),
   checkUpdate: () => ipcRenderer.invoke('update:check'),
   runUpdate: () => ipcRenderer.invoke('update:run'),
-  onChanged: (fn) => ipcRenderer.on('cfg:changed', () => fn()),
+  openRepo: () => ipcRenderer.send('open:repo'),
+  onChanged:(fn) => ipcRenderer.on('cfg:changed', () => fn()),
 });

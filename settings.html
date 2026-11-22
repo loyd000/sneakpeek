@@ -8,154 +8,277 @@
   @font-face { font-family: "Inter"; font-weight: 100 900; font-display: block;
     src: url("node_modules/@fontsource-variable/inter/files/inter-latin-wght-normal.woff2") format("woff2"); }
   :root {
-    --ink: #0a0a0a; --text: #f4f1ec; --muted: rgba(244, 241, 236, .52);
-    --line: rgba(255, 255, 255, .08);  /* dividers (decorative) */
-    --edge: #67645f;                   /* control outlines: 3.5:1 on --ink */
-    --track: rgba(255, 255, 255, .14); --knob-off: #8f8c87; --field: rgba(255, 255, 255, .05);
-    --accent: #a99bff; --warn: #ffc65a; --hot: #ff6b6b;
-    --hot-bg: rgba(255, 107, 107, .1); --hot-bg-hover: rgba(255, 107, 107, .18); --hot-edge: rgba(255, 107, 107, .35);
+    --ink: #0a0a0a; --surface: #141414; --raise: #1c1c1c; --text: #f4f1ec; --muted: rgba(244, 241, 236, .55);
+    --line: rgba(255, 255, 255, .07); --edge: #67645f; --track: rgba(255, 255, 255, .14); --knob-off: #8f8c87;
+    --claude: #d97757; --codex: #00ffc8; --warn: #ffc65a; --hot: #ff6b6b;
+    --acc: var(--text); /* the page's colour: Claude orange or Codex mint on their own pages */
   }
-  html, body { margin: 0; background: var(--ink); color: var(--text); font: 13px/1.45 "Inter", "Segoe UI", sans-serif; font-feature-settings: "cv11", "ss01"; }
+  body[data-page="claude"] { --acc: var(--claude); }
+  body[data-page="codex"] { --acc: var(--codex); }
+  html, body { margin: 0; height: 100%; background: var(--ink); color: var(--text); font: 13px/1.45 "Inter", "Segoe UI", sans-serif; font-feature-settings: "cv11", "ss01"; }
+  body { display: grid; grid-template-columns: 184px minmax(0, 1fr); overflow: hidden; }
   [hidden] { display: none !important; } /* the hidden attribute always wins over a component's own display */
-  ::selection { background: rgba(169, 155, 255, .35); color: var(--text); }
+  ::selection { background: rgba(244, 241, 236, .25); }
   ::-webkit-scrollbar { width: 10px; }
-  ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, .14); border-radius: 99px; border: 3px solid var(--ink); }
-  ::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, .24); }
-  main { max-width: 520px; margin: 0 auto; padding: 22px 24px 28px; }
-  header { display: flex; align-items: center; gap: 12px; margin-bottom: 22px; }
-  header img { width: 40px; height: 40px; }
-  header h1 { margin: 0; font-size: 18px; font-weight: 650; letter-spacing: .01em; }
-  header small { color: var(--muted); font-size: 12px; }
+  ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, .12); border-radius: 99px; border: 3px solid var(--ink); }
+  ::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, .22); }
+  button { all: unset; cursor: pointer; box-sizing: border-box; }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 
-  h2 { margin: 28px 0 6px; font-size: 11px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
-  .row { display: flex; align-items: center; gap: 16px; padding: 12px 0; border-bottom: 1px solid var(--line); }
-  .row:last-of-type { border-bottom: 0; }
+  /* Sidebar */
+  aside { display: flex; flex-direction: column; gap: 2px; padding: 18px 10px; border-right: 1px solid var(--line); }
+  .brand { display: flex; align-items: center; gap: 9px; padding: 2px 10px 18px; font-size: 14px; font-weight: 650; }
+  .brand img { width: 24px; height: 24px; }
+  nav { display: flex; flex-direction: column; gap: 2px; }
+  nav button { display: flex; align-items: center; gap: 8px; padding: 7px 10px; border-radius: 8px; color: var(--muted); font-weight: 500; transition: color .15s, background .15s; }
+  nav button:hover { color: var(--text); }
+  nav button[aria-current="page"] { color: var(--text); background: rgba(255, 255, 255, .07); }
+  nav .dot { margin-left: auto; }
+  .dot { width: 6px; height: 6px; border-radius: 50%; flex: none; background: var(--warn); }
+  .dot.ok-claude { background: var(--claude); } .dot.ok-codex { background: var(--codex); } .dot.ok { background: var(--text); }
+
+  /* Pages */
+  main { overflow-y: auto; }
+  .page { max-width: 500px; padding: 26px 32px 32px; animation: in .24s cubic-bezier(.2, .8, .2, 1); }
+  @keyframes in { from { opacity: 0; transform: translateY(4px); } }
+  .head { display: flex; align-items: center; gap: 10px; min-height: 28px; }
+  .head h1 { flex: 1; margin: 0; font-size: 19px; font-weight: 650; letter-spacing: -.01em; }
+  .head svg { width: 22px; height: 22px; fill: var(--acc); }
+  .group { margin-top: 18px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; transition: opacity .2s; }
+  .group.dim { opacity: .5; }
+  .row { display: flex; align-items: center; gap: 14px; min-height: 26px; padding: 11px 16px; }
+  .row + .row { border-top: 1px solid var(--line); }
   .row .txt { flex: 1; min-width: 0; }
-  .row .name { font-weight: 550; }
-  .row .desc { color: var(--muted); font-size: 12px; margin-top: 1px; }
-  .row .desc.warn, .note.warn { color: var(--warn); }
-  .note { color: var(--muted); font-size: 12px; margin: 8px 0 0; }
+  .row .name { font-weight: 500; }
+  .row .desc { color: var(--muted); font-size: 12px; }
+  .note { color: var(--muted); font-size: 12px; margin: 10px 4px 0; }
+  .note.warn { color: var(--warn); }
+  code { font: 11.5px "Cascadia Mono", Consolas, monospace; color: var(--text); }
 
-  /* Problems: a banner under the header, and a hint under the alert levels */
-  .banner { display: flex; gap: 12px; align-items: flex-start; margin: 0 0 6px; padding: 10px 12px; border-radius: 10px;
-    background: var(--hot-bg); border: 1px solid var(--hot-edge); }
+  /* Short warnings with the detail for screen readers and on hover */
+  .flag { display: inline-flex; align-items: center; gap: 6px; margin-left: 8px; vertical-align: 1px; }
+  .pill { font-size: 11px; font-weight: 600; padding: 1px 8px; border-radius: 99px; color: var(--warn); background: rgba(255, 198, 90, .1); cursor: default; }
+  .flag button { font-size: 11px; font-weight: 600; color: var(--text); text-decoration: underline; text-underline-offset: 2px; text-decoration-color: var(--edge); }
+
+  /* Problems: a banner at the top of the page */
+  .banner { display: flex; gap: 12px; align-items: flex-start; margin: 20px 32px 0; max-width: 436px; padding: 10px 12px; border-radius: 10px;
+    background: rgba(255, 107, 107, .1); border: 1px solid rgba(255, 107, 107, .35); }
   .banner p { flex: 1; margin: 0; }
-  .banner button { all: unset; cursor: pointer; flex: none; color: var(--muted); font-size: 12px; font-weight: 600; padding: 0 2px; }
+  .banner button { color: var(--muted); font-size: 12px; font-weight: 600; }
   .banner button:hover { color: var(--text); }
 
-  /* Switch: an outlined track so it's visible when off, a knob that slides */
+  /* Switch: outlined when off, the page's colour when on */
   .sw { position: relative; width: 36px; height: 20px; flex: none; }
   .sw input { appearance: none; margin: 0; width: 100%; height: 100%; border-radius: 99px; background: var(--track); cursor: pointer;
     box-shadow: inset 0 0 0 1.5px var(--edge); transition: background .2s, box-shadow .2s; }
-  .sw input:checked { background: var(--text); box-shadow: none; }
+  .sw input:checked { background: var(--acc); box-shadow: none; }
   .sw input:disabled { cursor: not-allowed; opacity: .4; }
   .sw::after { content: ""; position: absolute; top: 4px; left: 4px; width: 12px; height: 12px; border-radius: 50%; background: var(--knob-off);
     pointer-events: none; transition: transform .25s cubic-bezier(.3, 1.4, .5, 1), background .2s; }
   .sw:has(input:checked)::after { transform: translateX(16px); background: var(--ink); }
 
-  /* Numbers and sliders */
-  .num { width: 54px; padding: 6px 8px; border-radius: 8px; border: 1px solid var(--edge); background: var(--field); color: var(--text);
-    font: inherit; text-align: right; caret-color: var(--accent); }
-  .num:hover { border-color: var(--knob-off); }
-  .levels { display: flex; gap: 6px; align-items: center; color: var(--muted); }
-  .slider { display: flex; align-items: center; gap: 10px; width: 190px; flex: none; }
-  .slider output { width: 52px; text-align: right; color: var(--muted); font-variant-numeric: tabular-nums; }
+  /* Numbers inside a row: "after 10 s", "at 80% and 90%" */
+  .inline { display: flex; align-items: center; gap: 5px; color: var(--muted); font-size: 12px; }
+  .num { width: 30px; padding: 4px 6px; border-radius: 7px; border: 1px solid var(--line); background: var(--raise); color: var(--text);
+    font: inherit; font-size: 12px; text-align: right; font-variant-numeric: tabular-nums; caret-color: var(--text); }
+  .num:hover { border-color: var(--edge); }
+  .num::-webkit-inner-spin-button { display: none; }
+  .slider { display: flex; align-items: center; gap: 10px; width: 200px; flex: none; }
+  .slider output { width: 50px; text-align: right; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
   input[type=range] { flex: 1; accent-color: var(--text); cursor: pointer; }
 
-  button.danger { all: unset; cursor: pointer; padding: 8px 14px; border-radius: 10px; font-weight: 600; font-size: 12px; color: var(--hot); background: var(--hot-bg); }
-  button.danger:hover { background: var(--hot-bg-hover); }
-  button.plain { all: unset; cursor: pointer; flex: none; padding: 8px 14px; border-radius: 10px; font-weight: 600; font-size: 12px; color: var(--text); background: rgba(255, 255, 255, .08); }
-  button.plain:hover { background: rgba(255, 255, 255, .14); }
-  button.plain.go { background: var(--text); color: var(--ink); }
-  button.plain.go:hover { opacity: .85; }
-  button.plain:disabled { opacity: .5; cursor: default; }
-  /* Segmented control for the style */
-  .seg { display: flex; flex: none; padding: 3px; gap: 2px; border-radius: 10px; background: rgba(255, 255, 255, .06); box-shadow: inset 0 0 0 1px var(--line); }
-  .seg button { all: unset; cursor: pointer; padding: 6px 11px; border-radius: 8px; font-size: 12px; font-weight: 600; color: var(--muted); }
-  .seg button:hover { color: var(--text); }
-  .seg button[aria-checked="true"] { background: var(--text); color: var(--ink); }
-  footer { margin-top: 26px; color: var(--muted); font-size: 11.5px; }
-  code { font: 11.5px "Cascadia Mono", Consolas, monospace; }
+  .btn { flex: none; padding: 6px 13px; border-radius: 8px; font-weight: 600; font-size: 12px; background: rgba(255, 255, 255, .08); }
+  .btn:hover { background: rgba(255, 255, 255, .14); }
+  .btn.go { background: var(--text); color: var(--ink); }
+  .btn.go:hover { opacity: .85; }
+  .btn:disabled { opacity: .5; cursor: default; }
+  .btn.danger { color: var(--hot); background: rgba(255, 107, 107, .1); }
+  .btn.danger:hover { background: rgba(255, 107, 107, .18); }
+
+  /* Home: the eye opens, then blinks now and then */
+  .hero { display: flex; flex-direction: column; align-items: center; padding: 18px 0 8px; }
+  .eye { width: 92px; height: 92px; transform-origin: 50% 50%; animation: open .8s cubic-bezier(.2, 1.35, .4, 1) both, blink 7s 2s infinite; }
+  @keyframes open { from { transform: scaleY(.04); opacity: 0; } to { transform: none; opacity: 1; } }
+  @keyframes blink { 0%, 95%, 100% { transform: none; } 97% { transform: scaleY(.08); } }
+  .hero h1 { margin: 14px 0 0; font-size: 22px; font-weight: 650; letter-spacing: -.015em; }
+  .hero p { margin: 2px 0 0; color: var(--muted); }
+  .go-row { width: 100%; cursor: pointer; transition: background .15s; }
+  .go-row:first-child { border-radius: 11px 11px 0 0; } .go-row:last-child { border-radius: 0 0 11px 11px; }
+  .go-row:hover { background: var(--raise); }
+  .go-row .state { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 12px; }
+  .go-row svg { width: 14px; height: 14px; color: var(--muted); }
+
+  /* Appearance: three small screens */
+  .styles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 18px; }
+  .styles button { display: flex; flex-direction: column; gap: 8px; padding: 8px 8px 10px; border-radius: 12px; background: var(--surface);
+    border: 1px solid var(--line); color: var(--muted); font-weight: 500; text-align: center; transition: border-color .15s, color .15s; }
+  .styles button:hover { color: var(--text); }
+  .styles button[aria-checked="true"] { border-color: var(--text); color: var(--text); }
+  .screen { position: relative; height: 62px; border-radius: 7px; background: var(--raise); overflow: hidden; }
+  .screen i { position: absolute; background: var(--edge); transition: background .15s; }
+  .styles button[aria-checked="true"] .screen i { background: var(--text); }
+  .screen .tab { right: 0; top: 22px; width: 7px; height: 18px; border-radius: 5px 0 0 5px; }
+  .screen .island { left: 50%; top: 6px; width: 36px; height: 9px; margin-left: -18px; border-radius: 9px; }
+  .screen .notch { left: 50%; top: 0; width: 40px; height: 9px; margin-left: -20px; border-radius: 0 0 8px 8px; }
+
+  /* About */
+  .about { display: flex; align-items: center; gap: 12px; }
+  .about img { width: 40px; height: 40px; }
+  .about h1 { margin: 0; font-size: 19px; font-weight: 650; }
+  .about p { margin: 0; color: var(--muted); font-size: 12px; }
+  .credit { display: flex; align-items: center; justify-content: space-between; margin: 14px 4px 0; color: var(--muted); font-size: 12px; }
+  .credit button { display: inline-flex; align-items: center; gap: 4px; color: var(--text); font-weight: 500; }
+  .credit svg { width: 12px; height: 12px; }
 
   /* Focus last, so no component rule (like all: unset) can remove it */
-  input:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  input:focus-visible, button:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
 
   @media (prefers-reduced-motion: reduce) {
-    .sw input, .sw::after { transition: none; }
+    .sw input, .sw::after, .group { transition: none; }
+    .page, .eye { animation: none; }
   }
 </style>
 </head>
-<body>
+<body data-page="home">
+<aside>
+  <div class="brand"><img src="assets/sneakpeek.svg" alt="">SneakPeek</div>
+  <nav aria-label="Settings">
+    <button data-page="home">Home</button>
+    <button data-page="claude">Claude Code<span class="dot" id="dot-claude" hidden></span></button>
+    <button data-page="codex">Codex<span class="dot" id="dot-codex" hidden></span></button>
+    <button data-page="music">Music</button>
+    <button data-page="notify">Notifications</button>
+    <button data-page="look">Appearance</button>
+    <button data-page="about">About<span class="dot ok" id="dot-about" hidden></span></button>
+  </nav>
+</aside>
+
 <main>
-  <header>
-    <img src="assets/sneakpeek.svg" alt="">
-    <div><h1>SneakPeek</h1><small id="version"></small></div>
-  </header>
   <div class="banner" id="error" role="alert" hidden><p id="error-text"></p><button id="error-close">Dismiss</button></div>
 
-  <h2>AI tools</h2>
-  <div class="row"><div class="txt"><div class="name">Claude Code</div><div class="desc">Usage, logo and alerts for Claude</div></div><label class="sw"><input type="checkbox" data-set="claude"></label></div>
-  <div class="row"><div class="txt"><div class="name">ChatGPT · Codex</div><div class="desc">Usage, logo and alerts for ChatGPT / Codex</div></div><label class="sw"><input type="checkbox" data-set="codex"></label></div>
+  <section class="page" id="page-home" aria-label="Home">
+    <div class="hero"><img class="eye" src="assets/sneakpeek.svg" alt=""><h1>SneakPeek</h1><p>Your AI, at a glance.</p></div>
+    <div class="group">
+      <button class="row go-row" data-go="claude"><span class="txt name">Claude Code</span><span class="state"><span class="dot" id="st-claude-dot"></span><span id="st-claude"></span></span><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3.5 10.5 8 6 12.5"/></svg></button>
+      <button class="row go-row" data-go="codex"><span class="txt name">Codex</span><span class="state"><span class="dot" id="st-codex-dot"></span><span id="st-codex"></span></span><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3.5 10.5 8 6 12.5"/></svg></button>
+      <button class="row go-row" data-go="music"><span class="txt name">Music</span><span class="state"><span id="st-music"></span></span><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3.5 10.5 8 6 12.5"/></svg></button>
+    </div>
+    <div class="group" id="home-update" hidden>
+      <div class="row"><div class="txt name" id="home-update-text"></div><button class="btn go" data-update>Update</button></div>
+    </div>
+  </section>
 
-  <h2>Music</h2>
-  <div class="row"><div class="txt"><div class="name">Now playing</div><div class="desc">Song, cover art and controls for Spotify, YouTube, Apple Music and other players</div></div><label class="sw"><input type="checkbox" data-set="music"></label></div>
-  <div class="row"><div class="txt"><div class="name">Song change notes</div><div class="desc">A small note beside the tab when the song changes</div></div><label class="sw"><input type="checkbox" data-set="songNotes"></label></div>
+  <section class="page" id="page-claude" aria-labelledby="h-claude" hidden>
+    <div class="head"><svg aria-hidden="true" viewBox="0 0 1200 1200"><path d="M 233.959793 800.214905 L 468.644287 668.536987 L 472.590637 657.100647 L 468.644287 650.738403 L 457.208069 650.738403 L 417.986633 648.322144 L 283.892639 644.69812 L 167.597321 639.865845 L 54.926208 633.825623 L 26.577238 627.785339 L 3.3e-05 592.751709 L 2.73832 575.27533 L 26.577238 559.248352 L 60.724873 562.228149 L 136.187973 567.382629 L 249.422867 575.194763 L 331.570496 580.026978 L 453.261841 592.671082 L 472.590637 592.671082 L 475.328857 584.859009 L 468.724915 580.026978 L 463.570557 575.194763 L 346.389313 495.785217 L 219.543671 411.865906 L 153.100723 363.543762 L 117.181267 339.060425 L 99.060455 316.107361 L 91.248367 266.01355 L 123.865784 230.093994 L 167.677887 233.073853 L 178.872513 236.053772 L 223.248367 270.201477 L 318.040283 343.570496 L 441.825592 434.738342 L 459.946411 449.798706 L 467.194672 444.64447 L 468.080597 441.020203 L 459.946411 427.409485 L 392.617493 305.718323 L 320.778564 181.932983 L 288.80542 130.630859 L 280.348999 99.865845 C 277.369171 87.221436 275.194641 76.590698 275.194641 63.624268 L 312.322174 13.20813 L 332.8591 6.604126 L 382.389313 13.20813 L 403.248352 31.328979 L 434.013519 101.71814 L 483.865753 212.537048 L 561.181274 363.221497 L 583.812134 407.919434 L 595.892639 449.315491 L 600.40271 461.959839 L 608.214783 461.959839 L 608.214783 454.711609 L 614.577271 369.825623 L 626.335632 265.61084 L 637.771851 131.516846 L 641.718201 93.745117 L 660.402832 48.483276 L 697.530334 24.000122 L 726.52356 37.852417 L 750.362549 72 L 747.060486 94.067139 L 732.886047 186.201416 L 705.100708 330.52356 L 686.979919 427.167847 L 697.530334 427.167847 L 709.61084 415.087341 L 758.496704 350.174561 L 840.644348 247.490051 L 876.885925 206.738342 L 919.167847 161.71814 L 946.308838 140.29541 L 997.61084 140.29541 L 1035.38269 196.429626 L 1018.469849 254.416199 L 965.637634 321.422852 L 921.825562 378.201538 L 859.006714 462.765259 L 819.785278 530.41626 L 823.409424 535.812073 L 832.75177 534.92627 L 974.657776 504.724915 L 1051.328979 490.872559 L 1142.818848 475.167786 L 1184.214844 494.496582 L 1188.724854 514.147644 L 1172.456421 554.335693 L 1074.604126 578.496765 L 959.838989 601.449829 L 788.939636 641.879272 L 786.845764 643.409485 L 789.261841 646.389343 L 866.255127 653.637634 L 899.194702 655.409424 L 979.812134 655.409424 L 1129.932861 666.604187 L 1169.154419 692.537109 L 1192.671265 724.268677 L 1188.724854 748.429688 L 1128.322144 779.194641 L 1046.818848 759.865845 L 856.590759 714.604126 L 791.355774 698.335754 L 782.335693 698.335754 L 782.335693 703.731567 L 836.69812 756.885986 L 936.322205 846.845581 L 1061.073975 962.81897 L 1067.436279 991.490112 L 1051.409424 1014.120911 L 1034.496704 1011.704712 L 924.885986 929.234924 L 882.604126 892.107544 L 786.845764 811.48999 L 780.483276 811.48999 L 780.483276 819.946289 L 802.550415 852.241699 L 919.087341 1027.409424 L 925.127625 1081.127686 L 916.671204 1098.604126 L 886.469849 1109.154419 L 853.288696 1103.114136 L 785.073914 1007.355835 L 714.684631 899.516785 L 657.906067 802.872498 L 650.979858 806.81897 L 617.476624 1167.704834 L 601.771851 1186.147705 L 565.530212 1200 L 535.328857 1177.046997 L 519.302124 1139.919556 L 535.328857 1066.550537 L 554.657776 970.792053 L 570.362488 894.68457 L 584.536926 800.134277 L 592.993347 768.724976 L 592.429626 766.630859 L 585.503479 767.516968 L 514.22821 865.369263 L 405.825531 1011.865906 L 320.053711 1103.677979 L 299.516815 1111.812256 L 263.919525 1093.369263 L 267.221497 1060.429688 L 287.114136 1031.114136 L 405.825531 880.107361 L 477.422913 786.52356 L 523.651062 732.483276 L 523.328918 724.671265 L 520.590698 724.671265 L 205.288605 929.395935 L 149.154434 936.644409 L 124.993355 914.01355 L 127.973183 876.885986 L 139.409409 864.80542 L 234.201385 799.570435 L 233.879227 799.8927 Z"/></svg><h1 id="h-claude">Claude Code</h1><label class="sw"><input type="checkbox" data-set="claude" aria-labelledby="h-claude"></label></div>
+    <div class="group" data-ai="claude">
+      <div class="row"><div class="txt"><div class="name">Live usage<span class="flag" data-flag="claude.feed"></span></div><div class="desc">Also shows in the terminal status line</div></div><label class="sw"><input type="checkbox" data-int="claude.feed"></label></div>
+      <div class="row"><div class="txt"><div class="name">Working animation<span class="flag" data-flag="claude.activity"></span></div></div><label class="sw"><input type="checkbox" data-int="claude.activity"></label></div>
+      <div class="row"><div class="txt"><div class="name">Approvals and questions<span class="flag" data-flag="claude.ask"></span></div></div><label class="sw"><input type="checkbox" data-int="claude.ask"></label></div>
+    </div>
+    <p class="note" id="claude-note" hidden></p>
+    <p class="note">Start a new <code>claude</code> session after a change.</p>
+  </section>
 
-  <h2>Claude Code integration</h2>
-  <div class="row"><div class="txt"><div class="name">Live usage</div><div class="desc" id="feed-desc">Updates SneakPeek after every reply, and shows usage in the terminal status line</div></div><label class="sw"><input type="checkbox" data-int="claude.feed"></label></div>
-  <div class="row"><div class="txt"><div class="name">Working animation</div><div class="desc">Spinner while Claude works, and the "done" note</div></div><label class="sw"><input type="checkbox" data-int="claude.activity"></label></div>
-  <div class="row"><div class="txt"><div class="name">Approvals and questions</div><div class="desc">Answer Claude's permission prompts and questions in SneakPeek</div></div><label class="sw"><input type="checkbox" data-int="claude.ask"></label></div>
-  <p class="note" id="claude-note" hidden></p>
+  <section class="page" id="page-codex" aria-labelledby="h-codex" hidden>
+    <div class="head"><svg aria-hidden="true" viewBox="0 0 320 320"><path d="m297.06 130.97c7.26-21.79 4.76-45.66-6.85-65.48-17.46-30.4-52.56-46.04-86.84-38.68-15.25-17.18-37.16-26.95-60.13-26.81-35.04-.08-66.13 22.48-76.91 55.82-22.51 4.61-41.94 18.7-53.31 38.67-17.59 30.32-13.58 68.54 9.92 94.54-7.26 21.79-4.76 45.66 6.85 65.48 17.46 30.4 52.56 46.04 86.84 38.68 15.24 17.18 37.16 26.95 60.13 26.8 35.06.09 66.16-22.49 76.94-55.86 22.51-4.61 41.94-18.7 53.31-38.67 17.57-30.32 13.55-68.51-9.94-94.51zm-120.28 168.11c-14.03.02-27.62-4.89-38.39-13.88.49-.26 1.34-.73 1.89-1.07l63.72-36.8c3.26-1.85 5.26-5.32 5.24-9.07v-89.83l26.93 15.55c.29.14.48.42.52.74v74.39c-.04 33.08-26.83 59.9-59.91 59.97zm-128.84-55.03c-7.03-12.14-9.56-26.37-7.15-40.18.47.28 1.3.79 1.89 1.13l63.72 36.8c3.23 1.89 7.23 1.89 10.47 0l77.79-44.92v31.1c.02.32-.13.63-.38.83l-64.41 37.19c-28.69 16.52-65.33 6.7-81.92-21.95zm-16.77-139.09c7-12.16 18.05-21.46 31.21-26.29 0 .55-.03 1.52-.03 2.2v73.61c-.02 3.74 1.98 7.21 5.23 9.06l77.79 44.91-26.93 15.55c-.27.18-.61.21-.91.08l-64.42-37.22c-28.63-16.58-38.45-53.21-21.95-81.89zm221.26 51.49-77.79-44.92 26.93-15.54c.27-.18.61-.21.91-.08l64.42 37.19c28.68 16.57 38.51 53.26 21.94 81.94-7.01 12.14-18.05 21.44-31.2 26.28v-75.81c.03-3.74-1.96-7.2-5.2-9.06zm26.8-40.34c-.47-.29-1.3-.79-1.89-1.13l-63.72-36.8c-3.23-1.89-7.23-1.89-10.47 0l-77.79 44.92v-31.1c-.02-.32.13-.63.38-.83l64.41-37.16c28.69-16.55 65.37-6.7 81.91 22 6.99 12.12 9.52 26.31 7.15 40.1zm-168.51 55.43-26.94-15.55c-.29-.14-.48-.42-.52-.74v-74.39c.02-33.12 26.89-59.96 60.01-59.94 14.01 0 27.57 4.92 38.34 13.88-.49.26-1.33.73-1.89 1.07l-63.72 36.8c-3.26 1.85-5.26 5.31-5.24 9.06l-.04 89.79zm14.63-31.54 34.65-20.01 34.65 20v40.01l-34.65 20-34.65-20z"/></svg><h1 id="h-codex">Codex</h1><label class="sw"><input type="checkbox" data-set="codex" aria-labelledby="h-codex"></label></div>
+    <div class="group" data-ai="codex">
+      <div class="row"><div class="txt"><div class="name">Working animation<span class="flag" data-flag="codex.activity"></span></div></div><label class="sw"><input type="checkbox" data-int="codex.activity"></label></div>
+      <div class="row"><div class="txt"><div class="name">Approvals<span class="flag" data-flag="codex.ask"></span></div></div><label class="sw"><input type="checkbox" data-int="codex.ask"></label></div>
+    </div>
+    <p class="note" id="codex-note" hidden></p>
+    <p class="note">After a change, approve it with <code>/hooks</code> in Codex, then restart the Codex app.</p>
+  </section>
 
-  <h2>Codex integration</h2>
-  <div class="row"><div class="txt"><div class="name">Working animation</div><div class="desc">Shimmer while Codex works, and the "done" note</div></div><label class="sw"><input type="checkbox" data-int="codex.activity"></label></div>
-  <div class="row"><div class="txt"><div class="name">Approvals</div><div class="desc">Answer Codex's permission prompts in SneakPeek</div></div><label class="sw"><input type="checkbox" data-int="codex.ask"></label></div>
-  <p class="note" id="codex-note" hidden></p>
-  <p class="note">After a change, Codex asks you to approve it in <code>/hooks</code>. Restart the Codex desktop app to pick it up.</p>
+  <section class="page" id="page-music" aria-labelledby="h-music" hidden>
+    <div class="head"><h1 id="h-music">Music</h1><label class="sw"><input type="checkbox" data-set="music" aria-labelledby="h-music"></label></div>
+    <div class="group" data-dim="music">
+      <div class="row"><div class="txt"><div class="name">Song change notes</div></div><label class="sw"><input type="checkbox" data-set="songNotes"></label></div>
+    </div>
+    <p class="note">Works with Spotify, YouTube, Apple Music and other players.</p>
+  </section>
 
-  <h2>Notifications</h2>
-  <div class="row"><div class="txt"><div class="name">Sounds</div><div class="desc">Chimes for approvals, "done" notes and alerts</div></div><label class="sw"><input type="checkbox" data-set="sounds"></label></div>
-  <div class="row"><div class="txt"><div class="name">"Done" notes</div><div class="desc">When work took at least this many seconds</div></div>
-    <input class="num" type="number" min="0" max="600" step="1" id="doneMinSec" aria-label="Minimum seconds for a done note"><label class="sw"><input type="checkbox" data-set="doneNotes"></label></div>
-  <div class="row"><div class="txt"><div class="name">Usage alerts</div><div class="desc">When a limit passes these levels</div></div>
-    <div class="levels"><input class="num" type="number" min="1" max="99" step="1" id="lvl1" aria-label="First alert level, percent">%<input class="num" type="number" min="1" max="99" step="1" id="lvl2" aria-label="Second alert level, percent">%</div>
-    <label class="sw"><input type="checkbox" data-set="alerts"></label></div>
-  <p class="note" id="levels-msg" role="status" hidden></p>
-  <div class="row"><div class="txt"><div class="name">"Waiting for you" notes</div><div class="desc">When Claude has finished and is waiting for your reply</div></div><label class="sw"><input type="checkbox" data-set="waitNotes"></label></div>
-  <div class="row"><div class="txt"><div class="name">Pace forecast</div><div class="desc">How long until a limit runs out at your current pace, with a warning when it's under 30 minutes</div></div><label class="sw"><input type="checkbox" data-set="paceNotes"></label></div>
-  <div class="row"><div class="txt"><div class="name">Limit reset notes</div><div class="desc">When a limit you'd mostly used up resets</div></div><label class="sw"><input type="checkbox" data-set="resetNotes"></label></div>
+  <section class="page" id="page-notify" aria-labelledby="h-notify" hidden>
+    <div class="head"><h1 id="h-notify">Notifications</h1></div>
+    <div class="group">
+      <div class="row"><div class="txt"><div class="name">Sounds</div></div><label class="sw"><input type="checkbox" data-set="sounds"></label></div>
+    </div>
+    <div class="group">
+      <div class="row"><div class="txt"><div class="name">Done</div></div>
+        <span class="inline">after<input class="num" type="number" min="0" max="600" step="1" id="doneMinSec" aria-label="Minimum seconds for a done note">s</span><label class="sw"><input type="checkbox" data-set="doneNotes"></label></div>
+      <div class="row"><div class="txt"><div class="name">Usage alerts</div></div>
+        <span class="inline">at<input class="num" type="number" min="1" max="99" step="1" id="lvl1" aria-label="First alert level, percent">%<input class="num" type="number" min="1" max="99" step="1" id="lvl2" aria-label="Second alert level, percent">%</span>
+        <label class="sw"><input type="checkbox" data-set="alerts"></label></div>
+      <div class="row"><div class="txt"><div class="name">Waiting for you</div><div class="desc">When Claude needs your reply</div></div><label class="sw"><input type="checkbox" data-set="waitNotes"></label></div>
+      <div class="row"><div class="txt"><div class="name">Pace forecast</div><div class="desc">Time left at your current pace</div></div><label class="sw"><input type="checkbox" data-set="paceNotes"></label></div>
+      <div class="row"><div class="txt"><div class="name">Limit resets</div></div><label class="sw"><input type="checkbox" data-set="resetNotes"></label></div>
+    </div>
+    <p class="note" id="levels-msg" role="status" hidden></p>
+  </section>
 
-  <h2>Widget</h2>
-  <div class="row"><div class="txt"><div class="name" id="style-name">Style</div><div class="desc" id="style-desc">Where SneakPeek sits and how it looks</div></div>
-    <div class="seg" role="radiogroup" aria-labelledby="style-name" aria-describedby="style-desc">
-      <button role="radio" data-style="tab">Edge tab</button><button role="radio" data-style="island">Island</button><button role="radio" data-style="notch">Notch</button>
-    </div></div>
-  <div class="row"><div class="txt"><div class="name">Size</div></div><div class="slider"><input type="range" min="50" max="125" step="5" id="scale" aria-label="Widget size"><output id="scale-out"></output></div></div>
-  <div class="row" id="position-row"><div class="txt"><div class="name">Position</div><div class="desc">Where it sits on the right edge</div></div><div class="slider"><input type="range" min="0" max="100" step="1" id="offset" aria-label="Widget position"><output id="offset-out"></output></div></div>
+  <section class="page" id="page-look" aria-labelledby="h-look" hidden>
+    <div class="head"><h1 id="h-look">Appearance</h1></div>
+    <div class="styles" role="radiogroup" aria-labelledby="h-look">
+      <button role="radio" data-style="tab"><span class="screen"><i class="tab"></i></span>Edge tab</button>
+      <button role="radio" data-style="island"><span class="screen"><i class="island"></i></span>Island</button>
+      <button role="radio" data-style="notch"><span class="screen"><i class="notch"></i></span>Notch</button>
+    </div>
+    <div class="group">
+      <div class="row"><div class="txt"><div class="name">Size</div></div><div class="slider"><input type="range" min="50" max="125" step="5" id="scale" aria-label="Widget size"><output id="scale-out"></output></div></div>
+      <div class="row" id="position-row"><div class="txt"><div class="name">Position</div></div><div class="slider"><input type="range" min="0" max="100" step="1" id="offset" aria-label="Widget position on the right edge"><output id="offset-out"></output></div></div>
+    </div>
+  </section>
 
-  <h2>General</h2>
-  <div class="row"><div class="txt"><div class="name">Start with Windows</div><div class="desc warn" id="startup-desc" hidden></div></div><label class="sw"><input type="checkbox" id="startup"></label></div>
-  <div class="row"><div class="txt"><div class="name">Updates</div><div class="desc" id="update-desc"></div></div><button class="plain" id="update-btn">Check now</button></div>
-  <div class="row"><div class="txt"><div class="name">Remove all integrations</div><div class="desc">Takes SneakPeek's hooks and status line out of Claude Code and Codex</div></div><button class="danger" id="remove-all">Remove</button></div>
-
-  <footer>Saved to <code>~/.sneakpeek/settings.json</code></footer>
+  <section class="page" id="page-about" aria-labelledby="h-about" hidden>
+    <div class="about"><img src="assets/sneakpeek.svg" alt=""><div><h1 id="h-about">SneakPeek</h1><p id="version"></p></div></div>
+    <div class="group">
+      <div class="row"><div class="txt"><div class="name">Start with Windows<span class="flag" id="startup-flag"></span></div></div><label class="sw"><input type="checkbox" id="startup"></label></div>
+      <div class="row"><div class="txt"><div class="name">Updates</div><div class="desc" id="update-desc"></div></div><button class="btn" id="update-btn" data-update>Check now</button></div>
+    </div>
+    <div class="credit"><span>Built by Loyd De Guzman</span><button id="repo">GitHub<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 2.5h5.5V8M9.5 2.5 3 9"/></svg></button></div>
+    <div class="group">
+      <div class="row"><div class="txt"><div class="name">Remove all integrations</div><div class="desc">Takes SneakPeek out of Claude Code and Codex</div></div><button class="btn danger" id="remove-all">Remove</button></div>
+    </div>
+  </section>
 </main>
 
 <script>
-const $ = (s) => document.querySelector(s);
+const $ = (s) => document.querySelector(s), $$ = (s) => [...document.querySelectorAll(s)];
 const NAMES = { claude: 'Claude Code', codex: 'Codex' };
+const KEYS = { claude: ['claude.feed', 'claude.activity', 'claude.ask'], codex: ['codex.activity', 'codex.ask'] };
 let snap;
 
-// Each switch is named by its row's title and described by its row's description, and announced as a switch.
-document.querySelectorAll('.row').forEach((row, i) => {
+// Each switch in a row is named by the row's title and announced as a switch.
+$$('.row').forEach((row, i) => {
   const name = row.querySelector('.name'), desc = row.querySelector('.desc');
-  name.id = 'name-' + i; if (desc) desc.id ||= 'desc-' + i;
+  if (!name) return;
+  name.id ||= 'name-' + i; if (desc) desc.id ||= 'desc-' + i;
   row.querySelectorAll('input[type=checkbox]').forEach((input) => {
-    input.setAttribute('role', 'switch');
     input.setAttribute('aria-labelledby', name.id);
     if (desc) input.setAttribute('aria-describedby', desc.id);
   });
 });
+$$('input[type=checkbox]').forEach((input) => input.setAttribute('role', 'switch'));
+
+// Pages
+const pages = $$('nav button');
+function show(page) {
+  document.body.dataset.page = page;
+  pages.forEach((b) => { if (b.dataset.page === page) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current'); });
+  $$('.page').forEach((p) => { p.hidden = p.id !== 'page-' + page; });
+  $('main').scrollTop = 0;
+}
+pages.forEach((b, i) => {
+  b.addEventListener('click', () => show(b.dataset.page));
+  b.addEventListener('keydown', (e) => { // up and down arrows move through the sidebar
+    const d = { ArrowDown: 1, ArrowUp: -1 }[e.key];
+    if (!d) return;
+    e.preventDefault();
+    const next = pages[(i + d + pages.length) % pages.length];
+    next.focus(); show(next.dataset.page);
+  });
+});
+$$('[data-go]').forEach((b) => b.addEventListener('click', () => show(b.dataset.go)));
+show('home');
 
 function showError(msg) {
   $('#error').hidden = !msg;
@@ -163,60 +286,90 @@ function showError(msg) {
 }
 $('#error-close').addEventListener('click', () => showError(null));
 
+// How each AI tool is doing, for Home and the sidebar dots.
+function status(ai, c, i) {
+  if (!i[ai + '.installed']) return ['Not installed', ''];
+  if (i[ai + '.error']) return ['Needs attention', 'warn'];
+  if (!c[ai]) return ['Off', ''];
+  if (KEYS[ai].some((k) => i[k + '.elsewhere'])) return ['Needs attention', 'warn'];
+  const on = KEYS[ai].filter((k) => i[k]).length;
+  return on === KEYS[ai].length ? ['Connected', 'ok-' + ai] : on ? ['Partly connected', 'ok-' + ai] : ['Not connected', ''];
+}
+
+const short = (dir) => dir.replace(/^C:\/Users\/[^/]+/i, '~');
+// A short label, with the full sentence on hover and for screen readers.
+function flag(el, label, detail, fix) {
+  el.replaceChildren();
+  if (!label) return;
+  const pill = document.createElement('span');
+  pill.className = 'pill'; pill.title = detail; pill.textContent = label;
+  const sr = document.createElement('span'); sr.className = 'sr'; sr.textContent = ': ' + detail; pill.append(sr);
+  el.append(pill);
+  if (fix) { const b = document.createElement('button'); b.textContent = 'Fix'; b.title = 'Keep just this copy'; b.addEventListener('click', fix); el.append(b); }
+}
+
 function render(s) {
   snap = s;
   const { settings: c, integrations: i } = s;
   $('#version').textContent = 'Version ' + s.version;
-  document.querySelectorAll('[data-set]').forEach((el) => { el.checked = c[el.dataset.set]; });
-  document.querySelectorAll('[data-int]').forEach((el) => { el.checked = !!i[el.dataset.int]; });
+  $$('[data-set]').forEach((el) => { el.checked = c[el.dataset.set]; });
+  $$('[data-int]').forEach((el) => { el.checked = !!i[el.dataset.int]; });
 
-  // Integrations: locked when the tool isn't installed or its config file can't be used; a note says why.
   for (const ai of ['claude', 'codex']) {
+    // Locked when the tool isn't installed or its config file can't be used; a note says why.
     const locked = !i[ai + '.installed'] || !!i[ai + '.error'];
-    document.querySelectorAll(`[data-int^="${ai}."]`).forEach((el) => { el.disabled = locked; });
+    $$(`[data-int^="${ai}."]`).forEach((el) => { el.disabled = locked; });
     const note = $('#' + ai + '-note');
-    note.textContent = !i[ai + '.installed'] ? `${NAMES[ai]} isn't set up on this computer, so there's nothing to connect yet.`
+    note.textContent = !i[ai + '.installed'] ? `${NAMES[ai]} isn't set up on this computer.`
       : i[ai + '.error'] ? i[ai + '.error']
-      : !c[ai] ? `${NAMES[ai]} is switched off above, so SneakPeek ignores these until you turn it back on.` : '';
+      : !c[ai] ? `Off, so SneakPeek ignores ${NAMES[ai]}.` : '';
     note.classList.toggle('warn', !!i[ai + '.error']);
     note.hidden = !note.textContent;
+    $(`[data-ai="${ai}"]`).classList.toggle('dim', !c[ai]);
+    const [text, tone] = status(ai, c, i);
+    $('#st-' + ai).textContent = text;
+    $('#st-' + ai + '-dot').className = 'dot ' + tone; $('#st-' + ai + '-dot').hidden = !tone;
+    $('#dot-' + ai).hidden = tone !== 'warn';
   }
-  // Each integration's description says if another SneakPeek copy (e.g. a git clone next to the npm install) set it up.
-  const short = (dir) => dir.replace(/^C:\/Users\/[^/]+/i, '~');
-  document.querySelectorAll('[data-int]').forEach((el) => {
-    const key = el.dataset.int, desc = el.closest('.row').querySelector('.desc'), other = i[key + '.elsewhere'];
-    desc.dataset.text ??= desc.textContent;
-    let text = desc.dataset.text, warn = false;
-    if (key === 'claude.feed' && i['claude.feed.blocked']) { text = 'Claude Code already has another status line, so SneakPeek leaves it alone'; warn = true; el.disabled = true; }
-    else if (other && el.checked) { text = `Also set up by SneakPeek in ${short(other)}, so it runs twice. Switch off and on to keep just this copy.`; warn = true; }
-    else if (other) { text = `Set up by SneakPeek in ${short(other)}. Switch on to move it to this copy.`; warn = true; }
-    desc.textContent = text;
-    desc.classList.toggle('warn', warn);
+  $('[data-dim="music"]').classList.toggle('dim', !c.music);
+  $('#st-music').textContent = c.music ? 'On' : 'Off';
+
+  // Another SneakPeek copy (e.g. a git clone next to the npm install) may have set up the same hook.
+  $$('[data-flag]').forEach((el) => {
+    const key = el.dataset.flag, other = i[key + '.elsewhere'], input = $(`[data-int="${key}"]`);
+    if (key === 'claude.feed' && i['claude.feed.blocked']) {
+      input.disabled = true;
+      return flag(el, 'Other status line', 'Claude Code already has another status line, so SneakPeek leaves it alone.');
+    }
+    if (other && input.checked) return flag(el, 'Runs twice', `Also set up by SneakPeek in ${short(other)}.`,
+      () => apply(window.sneakpeek.setIntegration(key, false).then(() => window.sneakpeek.setIntegration(key, true))));
+    if (other) return flag(el, 'Other copy', `Set up by SneakPeek in ${short(other)}. Switch on to move it here.`);
+    flag(el);
   });
-  const sd = $('#startup-desc');
-  sd.textContent = s.startupElsewhere ? `Starts the SneakPeek in ${short(s.startupElsewhere)}. Switch off and on to start this copy instead.` : '';
-  sd.hidden = !sd.textContent;
+  flag($('#startup-flag'), s.startupElsewhere && 'Other copy',
+    s.startupElsewhere && `Starts the SneakPeek in ${short(s.startupElsewhere)}. Switch off and on to start this copy instead.`);
 
   $('#doneMinSec').value = c.doneMinSec;
   [$('#lvl1').value, $('#lvl2').value] = [c.alertLevels[0] ?? '', c.alertLevels[1] ?? ''];
   $('#scale').value = Math.round(c.scale * 100); $('#scale-out').value = Math.round(c.scale * 100) + '%';
   $('#offset').value = c.offset; $('#offset-out').value = c.offset < 15 ? 'Top' : c.offset > 85 ? 'Bottom' : c.offset === 50 ? 'Middle' : c.offset + '%';
   $('#startup').checked = s.startup;
-  document.querySelectorAll('[data-style]').forEach((b) => {
-    const on = b.dataset.style === c.style;
+  $$('[data-style]').forEach((b) => {
+    const on = b.dataset.style === (c.style || 'tab');
     b.setAttribute('aria-checked', on); b.tabIndex = on ? 0 : -1; // one tab stop; arrow keys move within the group
   });
-  $('#style-desc').textContent = { tab: 'A tab on the right edge of the screen', island: 'A floating pill at the top of the screen', notch: 'A notch hanging from the top of the screen' }[c.style];
-  $('#position-row').hidden = c.style !== 'tab'; // the island and notch always sit at the top centre
+  $('#position-row').hidden = (c.style || 'tab') !== 'tab'; // the island and notch always sit at the top centre
 
   // Updates: a newer version on GitHub can be installed in place (npm install), or pulled (git clone).
-  const u = s.update || {}, btn = $('#update-btn');
+  const u = s.update || {}, btn = $('#update-btn'), ready = !!(u.available && u.canInstall);
   btn.disabled = false;
-  btn.classList.toggle('go', !!(u.available && u.canInstall));
-  btn.textContent = u.available && u.canInstall ? 'Update now' : 'Check now';
-  $('#update-desc').textContent = !u.available ? `You have the latest version (${s.version})`
-    : u.canInstall ? `Version ${u.available} is available. SneakPeek closes, updates and starts again.`
-    : `Version ${u.available} is available. This copy runs from a folder, so update it with git pull.`;
+  btn.classList.toggle('go', ready);
+  btn.textContent = ready ? 'Update' : 'Check now';
+  $('#update-desc').textContent = !u.available ? 'Up to date'
+    : u.canInstall ? `Version ${u.available} is out` : `Version ${u.available} is out. Update this copy with git pull.`;
+  $('#home-update').hidden = !ready;
+  $('#home-update-text').textContent = `Version ${u.available} is out`;
+  $('#dot-about').hidden = !u.available;
 }
 
 // Every change goes through here: show the real state afterwards, and say so if it didn't happen.
@@ -232,8 +385,8 @@ async function apply(request) {
 }
 const set = (patch) => apply(window.sneakpeek.set(patch));
 
-document.querySelectorAll('[data-set]').forEach((el) => el.addEventListener('change', () => set({ [el.dataset.set]: el.checked })));
-document.querySelectorAll('[data-int]').forEach((el) => el.addEventListener('change', () => apply(window.sneakpeek.setIntegration(el.dataset.int, el.checked))));
+$$('[data-set]').forEach((el) => el.addEventListener('change', () => set({ [el.dataset.set]: el.checked })));
+$$('[data-int]').forEach((el) => el.addEventListener('change', () => apply(window.sneakpeek.setIntegration(el.dataset.int, el.checked))));
 $('#doneMinSec').addEventListener('change', (e) => {
   const n = Math.round(+e.target.value);
   if (!Number.isFinite(n) || e.target.value === '') return render(snap);
@@ -246,7 +399,7 @@ function levels() {
   const ok = raw.map(Number).filter((n) => Number.isInteger(n) && n >= 1 && n <= 99);
   const msg = $('#levels-msg');
   if (ok.length < raw.length) msg.textContent = 'Alert levels are whole numbers from 1 to 99, so SneakPeek skipped the other one.';
-  else if (ok.length === 2 && ok[0] > ok[1]) msg.textContent = 'SneakPeek put the lower level first, so it alerts in order.';
+  else if (ok.length === 2 && ok[0] > ok[1]) msg.textContent = 'SneakPeek put the lower level first.';
   else if (ok.length === 2 && ok[0] === ok[1]) msg.textContent = 'Both levels were the same, so SneakPeek kept one.';
   else msg.textContent = '';
   msg.hidden = !msg.textContent;
@@ -261,7 +414,7 @@ const live = (patch) => { clearTimeout(t); t = setTimeout(() => set(patch), 40);
 $('#scale').addEventListener('input', (e) => { $('#scale-out').value = e.target.value + '%'; live({ scale: e.target.value / 100 }); });
 $('#offset').addEventListener('input', (e) => live({ offset: +e.target.value }));
 $('#startup').addEventListener('change', (e) => apply(window.sneakpeek.setStartup(e.target.checked)));
-const styles = [...document.querySelectorAll('[data-style]')];
+const styles = $$('[data-style]');
 styles.forEach((b, i) => {
   b.addEventListener('click', () => set({ style: b.dataset.style }));
   b.addEventListener('keydown', (e) => { // radio-group keys: arrows pick the next / previous style
@@ -272,12 +425,13 @@ styles.forEach((b, i) => {
     next.focus(); set({ style: next.dataset.style });
   });
 });
-$('#update-btn').addEventListener('click', () => {
+$$('[data-update]').forEach((b) => b.addEventListener('click', () => {
   const u = snap?.update || {}, btn = $('#update-btn');
   if (u.available && u.canInstall) { btn.disabled = true; btn.textContent = 'Updating…'; apply(window.sneakpeek.runUpdate()); return; }
   btn.disabled = true; btn.textContent = 'Checking…';
   apply(window.sneakpeek.checkUpdate());
-});
+}));
+$('#repo').addEventListener('click', () => window.sneakpeek.openRepo());
 window.sneakpeek.onChanged(() => apply(window.sneakpeek.get()));
 $('#remove-all').addEventListener('click', () => {
   if (confirm('Remove all of SneakPeek\'s hooks and its status line from Claude Code and Codex?\n\nSneakPeek keeps running but stops getting live updates, animations and approvals. You can switch them back on here.'))
