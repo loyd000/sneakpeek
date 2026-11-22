@@ -69,6 +69,11 @@
   button.plain.go { background: var(--text); color: var(--ink); }
   button.plain.go:hover { opacity: .85; }
   button.plain:disabled { opacity: .5; cursor: default; }
+  /* Segmented control for the style */
+  .seg { display: flex; flex: none; padding: 3px; gap: 2px; border-radius: 10px; background: rgba(255, 255, 255, .06); box-shadow: inset 0 0 0 1px var(--line); }
+  .seg button { all: unset; cursor: pointer; padding: 6px 11px; border-radius: 8px; font-size: 12px; font-weight: 600; color: var(--muted); }
+  .seg button:hover { color: var(--text); }
+  .seg button[aria-checked="true"] { background: var(--text); color: var(--ink); }
   footer { margin-top: 26px; color: var(--muted); font-size: 11.5px; }
   code { font: 11.5px "Cascadia Mono", Consolas, monospace; }
 
@@ -118,8 +123,12 @@
   <p class="note" id="levels-msg" role="status" hidden></p>
 
   <h2>Widget</h2>
+  <div class="row"><div class="txt"><div class="name" id="style-name">Style</div><div class="desc" id="style-desc">Where SneakPeek sits and how it looks</div></div>
+    <div class="seg" role="radiogroup" aria-labelledby="style-name" aria-describedby="style-desc">
+      <button role="radio" data-style="tab">Edge tab</button><button role="radio" data-style="island">Island</button><button role="radio" data-style="notch">Notch</button>
+    </div></div>
   <div class="row"><div class="txt"><div class="name">Size</div></div><div class="slider"><input type="range" min="50" max="125" step="5" id="scale" aria-label="Widget size"><output id="scale-out"></output></div></div>
-  <div class="row"><div class="txt"><div class="name">Position</div><div class="desc">Where it sits on the right edge</div></div><div class="slider"><input type="range" min="0" max="100" step="1" id="offset" aria-label="Widget position"><output id="offset-out"></output></div></div>
+  <div class="row" id="position-row"><div class="txt"><div class="name">Position</div><div class="desc">Where it sits on the right edge</div></div><div class="slider"><input type="range" min="0" max="100" step="1" id="offset" aria-label="Widget position"><output id="offset-out"></output></div></div>
 
   <h2>General</h2>
   <div class="row"><div class="txt"><div class="name">Start with Windows</div><div class="desc warn" id="startup-desc" hidden></div></div><label class="sw"><input type="checkbox" id="startup"></label></div>
@@ -190,6 +199,12 @@ function render(s) {
   $('#scale').value = Math.round(c.scale * 100); $('#scale-out').value = Math.round(c.scale * 100) + '%';
   $('#offset').value = c.offset; $('#offset-out').value = c.offset < 15 ? 'Top' : c.offset > 85 ? 'Bottom' : c.offset === 50 ? 'Middle' : c.offset + '%';
   $('#startup').checked = s.startup;
+  document.querySelectorAll('[data-style]').forEach((b) => {
+    const on = b.dataset.style === c.style;
+    b.setAttribute('aria-checked', on); b.tabIndex = on ? 0 : -1; // one tab stop; arrow keys move within the group
+  });
+  $('#style-desc').textContent = { tab: 'A tab on the right edge of the screen', island: 'A floating pill at the top of the screen', notch: 'A notch hanging from the top of the screen' }[c.style];
+  $('#position-row').hidden = c.style !== 'tab'; // the island and notch always sit at the top centre
 
   // Updates: a newer version on GitHub can be installed in place (npm install), or pulled (git clone).
   const u = s.update || {}, btn = $('#update-btn');
@@ -243,6 +258,17 @@ const live = (patch) => { clearTimeout(t); t = setTimeout(() => set(patch), 40);
 $('#scale').addEventListener('input', (e) => { $('#scale-out').value = e.target.value + '%'; live({ scale: e.target.value / 100 }); });
 $('#offset').addEventListener('input', (e) => live({ offset: +e.target.value }));
 $('#startup').addEventListener('change', (e) => apply(window.sneakpeek.setStartup(e.target.checked)));
+const styles = [...document.querySelectorAll('[data-style]')];
+styles.forEach((b, i) => {
+  b.addEventListener('click', () => set({ style: b.dataset.style }));
+  b.addEventListener('keydown', (e) => { // radio-group keys: arrows pick the next / previous style
+    const d = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[e.key];
+    if (!d) return;
+    e.preventDefault();
+    const next = styles[(i + d + styles.length) % styles.length];
+    next.focus(); set({ style: next.dataset.style });
+  });
+});
 $('#update-btn').addEventListener('click', () => {
   const u = snap?.update || {}, btn = $('#update-btn');
   if (u.available && u.canInstall) { btn.disabled = true; btn.textContent = 'Updating…'; apply(window.sneakpeek.runUpdate()); return; }

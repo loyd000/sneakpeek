@@ -55,7 +55,13 @@ Turn on **Start with Windows** in Settings if you want SneakPeek to start with W
 
 ## Using it
 
-- **Hover** the tab to open the panel. **Click** it to keep the panel open.
+- **Pick a style** in Settings → Widget:
+  - **Edge tab:** a tab on the right edge of the screen.
+  - **Island:** a floating pill at the top centre.
+  - **Notch:** a notch hanging from the top edge.
+
+  In Island and Notch, the pill stays empty until something happens. Then it stretches to show the live activity: Claude or Codex working (with a timer), the song playing, or a "done" note.
+- **Hover** the tab (or island) to open the panel. **Click** it to keep the panel open.
 - **Right-click** the tab, or click the tray icon, for Settings, Refresh and Quit.
 - Running `sneakpeek` again while it's running opens Settings.
 - Every `sneakpeek` start plays a small spinning logo in the terminal. Add `--quiet` to skip it.

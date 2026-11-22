@@ -23,7 +23,11 @@ const integrations = require('./integrations');
 const firstRun = !fs.existsSync(path.join(os.homedir(), '.sneakpeek', 'settings.json'));
 let cfg = config.load();
 // The page is laid out at 380x620 and zoomed by cfg.scale (Settings → Size).
-const size = () => ({ w: Math.round(380 * cfg.scale), h: Math.round(620 * cfg.scale) });
+// The page is laid out at a fixed size per style and zoomed by cfg.scale (Settings → Size):
+// the edge tab is a tall strip on the right; Island / Notch is a wide area at the top centre.
+const LAYOUT = { tab: [380, 620], island: [480, 460], notch: [480, 460] };
+const size = () => { const [w, h] = LAYOUT[cfg.style] || LAYOUT.tab; return { w: Math.round(w * cfg.scale), h: Math.round(h * cfg.scale) }; };
+const loadWidget = () => win.loadFile('index.html', { query: { style: cfg.style } });
 const POLL_MS = 60_000;
 // A session counts as working until its Stop hook, or this long after its last hook event
 // (Stop doesn't fire when you interrupt Claude, so this is the safety net).
@@ -87,7 +91,8 @@ function runUpdate() {
 // Docked to the right edge of the primary screen; Settings → Position moves it up or down.
 function dock() {
   const a = screen.getPrimaryDisplay().workArea, { w, h } = size();
-  win.setBounds({ x: a.x + a.width - w, y: Math.round(a.y + (a.height - h) * cfg.offset / 100), width: w, height: h });
+  if (cfg.style === 'tab') win.setBounds({ x: a.x + a.width - w, y: Math.round(a.y + (a.height - h) * cfg.offset / 100), width: w, height: h });
+  else win.setBounds({ x: Math.round(a.x + (a.width - w) / 2), y: a.y, width: w, height: h }); // top centre
 }
 
 async function refresh() {
@@ -110,7 +115,8 @@ function applySettings(next) {
   const prev = cfg;
   cfg = config.clean(next);
   saveSoon();
-  if (prev.scale !== cfg.scale || prev.offset !== cfg.offset) { dock(); win.webContents.setZoomFactor(cfg.scale); }
+  if (prev.style !== cfg.style) { dock(); loadWidget(); } // new shape: reload the page in the new style (state is resent on load)
+  else if (prev.scale !== cfg.scale || prev.offset !== cfg.offset) { dock(); win.webContents.setZoomFactor(cfg.scale); }
   if (prev.scale !== cfg.scale && lastArt) send('media', { artOnly: true, ...sizedArt(lastArt) }); // re-fit covers to the new size
   send('settings', cfg);
   if (prev.claude !== cfg.claude || prev.codex !== cfg.codex) { lastActivity = ''; activity(); refresh(); }
@@ -131,8 +137,11 @@ function sizedArt(art) {
              artSmall: img.resize({ width: px(28), height: px(28), quality: 'best' }).toDataURL() };
   } catch { return { art, artSmall: art }; }
 }
+let lastMedia = null; // latest now-playing, art included, so a reloaded page can show it at once
 function sendMedia(msg) {
+  lastMedia = msg.none ? null : msg.artOnly ? lastMedia && { ...lastMedia, art: msg.art, artSmall: msg.artSmall } : { ...(lastMedia || {}), ...msg };
   if ('art' in msg) { lastArt = msg.art; Object.assign(msg, sizedArt(msg.art)); }
+  if (lastMedia && 'art' in msg) Object.assign(lastMedia, { art: msg.art, artSmall: msg.artSmall });
   send('media', msg);
 }
 function startMedia() {
@@ -184,10 +193,10 @@ function activity() {
     // Was working at the last read, now stopped: tell the page it's done (toast + sound).
     if (wasWorking?.get(ai + ':' + sid) && !s.working) send('done', { ai, project: s.project || '', ranMs: s.at - (s.since ?? s.at) });
     if (!latest || s.at > latest.at) latest = { ai, at: s.at };
-    if (s.working && Date.now() - s.at < STALE_MS && (!busy || s.at > busy.at)) busy = { ai, at: s.at };
+    if (s.working && Date.now() - s.at < STALE_MS && (!busy || s.at > busy.at)) busy = { ai, at: s.at, since: s.since || s.at };
   }
   wasWorking = now;
-  const a = { ai: (busy || latest)?.ai || (cfg.claude ? 'claude' : 'codex'), working: !!busy };
+  const a = { ai: (busy || latest)?.ai || (cfg.claude ? 'claude' : 'codex'), working: !!busy, since: busy?.since || 0 };
   const key = JSON.stringify(a);
   if (key !== lastActivity) { lastActivity = key; send('activity', a); }
 }
@@ -230,8 +239,12 @@ app.whenReady().then(() => {
   win.setVisibleOnAllWorkspaces(true);
   win.setIgnoreMouseEvents(true, { forward: true }); // transparent area clicks pass through to the desktop
   dock();
-  win.webContents.on('did-finish-load', () => { win.webContents.setZoomFactor(cfg.scale); send('settings', cfg); lastActivity = ''; activity(); requests(); });
-  win.loadFile('index.html');
+  win.webContents.on('did-finish-load', () => {
+    win.webContents.setZoomFactor(cfg.scale); send('settings', cfg); lastActivity = ''; activity(); requests();
+    if (last) send('usage', last);            // after a style change the page reloads: show everything again at once
+    if (lastMedia) send('media', lastMedia);
+  });
+  loadWidget();
   win.once('ready-to-show', () => {
     win.showInactive();
     const saved = cachedUsage(); // last session's numbers, shown at once while the fresh check runs

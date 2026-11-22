@@ -12,6 +12,7 @@ const DEFAULTS = {
   doneMinSec: 10,        // ...only for work that ran at least this long
   alerts: true,          // usage alerts
   alertLevels: [80, 90], // ...at these percentages
+  style: 'tab',          // 'tab' (right edge), 'island' (floating pill at the top) or 'notch' (hangs from the top edge)
   scale: 0.75,           // widget size
   offset: 50,            // vertical position on the screen edge, 0 = top, 100 = bottom
 };
@@ -24,6 +25,7 @@ function clean(s) {
     claude: bool('claude'), codex: bool('codex'), music: bool('music'), songNotes: bool('songNotes'), sounds: bool('sounds'), doneNotes: bool('doneNotes'), alerts: bool('alerts'),
     doneMinSec: num(s.doneMinSec, 0, 600, d.doneMinSec),
     alertLevels: levels.length ? levels.slice(0, 3) : d.alertLevels,
+    style: ['tab', 'island', 'notch'].includes(s.style) ? s.style : d.style,
     scale: num(s.scale, 0.5, 1.25, d.scale),
     offset: num(s.offset, 0, 100, d.offset),
   };

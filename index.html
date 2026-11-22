@@ -85,6 +85,20 @@
   .ctl button:focus-visible { outline: 1px solid var(--muted); }
   .ctl svg { width: 16px; height: 16px; fill: currentColor; }
 
+  /* Island / Notch: the live-activity strip inside the pill (working, music, notes). */
+  #strip { position: absolute; display: flex; align-items: center; gap: 8px; font-size: 12px; white-space: nowrap; overflow: hidden;
+    opacity: 0; transition: opacity .18s; pointer-events: none; }
+  #strip.show { opacity: 1; transition: opacity .25s .14s; }
+  #strip .grow { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  #strip .mut { color: var(--muted); }
+  #strip .ok { font-weight: 700; color: var(--c, var(--text)); }
+  #strip .timer { font-variant-numeric: tabular-nums; color: var(--muted); }
+  #strip .eqs { display: flex; gap: 2px; align-items: end; height: 13px; flex: none; }
+  #strip .eqs i { width: 3px; border-radius: 2px; background: var(--text); animation: eqs 1s ease-in-out infinite; }
+  #strip .eqs i:nth-child(2) { animation-delay: -.35s; } #strip .eqs i:nth-child(3) { animation-delay: -.7s; }
+  @keyframes eqs { 0%, 100% { height: 4px; } 50% { height: 13px; } }
+  body.top #toast { display: none; } /* notes appear inside the island instead */
+
   #clip { position: absolute; inset: 0; pointer-events: none; } /* clipped to the blob outline every frame */
   #panel { position: absolute; left: 106px; width: 254px; opacity: 0; pointer-events: none; } /* left = W - OPEN.d + 26 */
   body.open #panel { pointer-events: auto; }
@@ -155,7 +169,7 @@
 
 <div id="toast" aria-live="polite"></div>
 
-<div id="clip"><div id="panel">
+<div id="clip"><div id="strip"></div><div id="panel">
   <header>
     <div class="grow"><small id="updated"></small></div>
     <button id="pin" aria-label="Keep open" title="Keep open">
@@ -183,6 +197,35 @@ const $ = (s) => document.querySelector(s);
 const body = document.body, blob = $('#blob'), icon = $('#icon');
 const W = 380, CY = 310; // fixed layout size; main.js zooms the whole page to the real window size
 
+// Which look: 'tab' (right edge), 'island' (floating pill at the top centre) or 'notch' (hangs from the top edge).
+const STYLE = new URLSearchParams(location.search).get('style') || 'tab', TOPSTYLE = STYLE !== 'tab', NOTCH = STYLE === 'notch';
+body.classList.add('style-' + STYLE);
+body.classList.toggle('top', TOPSTYLE);
+
+// ---- Island / Notch geometry (page units; the window is 480 wide, centred at the top of the screen) ----
+// w/h: size, r: corner radius, s: the notch's curved shoulders into the screen edge (0 for the island).
+const TW = 480, TCX = TW / 2, TTOP = NOTCH ? 0 : 10;
+const T_IDLE = NOTCH ? { w: 150, h: 26, r: 13, s: 10 } : { w: 112, h: 32, r: 16, s: 0 };    // empty, like a phone's island
+const T_STRIP = NOTCH ? { w: 280, h: 36, r: 16, s: 12 } : { w: 280, h: 38, r: 19, s: 0 };  // live activity
+const T_OPEN = NOTCH ? { w: 360, h: 220, r: 26, s: 16 } : { w: 360, h: 220, r: 28, s: 0 }; // panel / cards (h fits the content)
+function topPath({ w, h, r, s: sh }) {
+  const x0 = TCX - w / 2, x1 = TCX + w / 2, y0 = TTOP, y1 = TTOP + h;
+  sh = Math.max(0, sh); r = Math.max(0, Math.min(r, h / 2, w / 2, h - sh));
+  const k = 0.5523 * r;
+  if (!NOTCH) // floating pill / rounded card
+    return `M${x0 + r},${y0} L${x1 - r},${y0} C${x1 - r + k},${y0} ${x1},${y0 + r - k} ${x1},${y0 + r} L${x1},${y1 - r}`
+      + ` C${x1},${y1 - r + k} ${x1 - r + k},${y1} ${x1 - r},${y1} L${x0 + r},${y1} C${x0 + r - k},${y1} ${x0},${y1 - r + k} ${x0},${y1 - r}`
+      + ` L${x0},${y0 + r} C${x0},${y0 + r - k} ${x0 + r - k},${y0} ${x0 + r},${y0} Z`;
+  // notch: shoulders curve out of the top edge, straight sides, rounded bottom corners
+  const q = 0.5523 * sh;
+  return `M${x0 - sh},-4 L${x0 - sh},0 C${x0 - sh + q},0 ${x0},${sh - q} ${x0},${sh} L${x0},${y1 - r}`
+    + ` C${x0},${y1 - r + k} ${x0 + r - k},${y1} ${x0 + r},${y1} L${x1 - r},${y1} C${x1 - r + k},${y1} ${x1},${y1 - r + k} ${x1},${y1 - r}`
+    + ` L${x1},${sh} C${x1},${sh - q} ${x1 + sh - q},0 ${x1 + sh},0 L${x1 + sh},-4 Z`;
+}
+// What the closed island shows: an empty pill, or a strip of live activity.
+let stripKind = '', transient = null, transientTimer = 0, workSince = 0;
+const closedTop = () => (stripContent() ? T_STRIP : T_IDLE);
+
 // ---- Shape morph: each dimension is its own spring, so the blob stretches organically ----
 // d: depth from screen edge, h: half-height, c: cap corner radius, fx/fy: fillet width/height into the screen edge.
 // t: fillet tension. 0.45 ≈ quarter ellipse (scooped), → 1 = straight diagonal.
@@ -193,15 +236,22 @@ let PANEL_TOP;
 // Open shape hugs whatever the panel currently contains (errors are shorter than full meters).
 function fit() {
   const panel = $('#panel');
+  if (TOPSTYLE) {
+    T_OPEN.h = Math.min(440, Math.ceil(panel.offsetHeight + 34));
+    panel.style.top = (TTOP + 16) + 'px';
+    return kick();
+  }
   OPEN.h = Math.min(CY - 40, Math.ceil((panel.offsetHeight + 40) / 2));
   OPEN.fy = Math.min(80, CY - OPEN.h - 4);
   PANEL_TOP = CY - OPEN.h + 22;
   panel.style.top = PANEL_TOP + 'px';
   kick();
 }
-const SPRING = { d: [210, 25], h: [170, 23], c: [200, 26], fx: [180, 24], fy: [140, 21], t: [180, 26], a: [180, 26] }; // [stiffness, damping]
-const s = {}; for (const k in CLOSED) s[k] = { x: CLOSED[k], v: 0 };
-let target = CLOSED, raf = 0, last = 0;
+const SPRING = { d: [210, 25], h: [170, 23], c: [200, 26], fx: [180, 24], fy: [140, 21], t: [180, 26], a: [180, 26],
+  w: [190, 23], r: [200, 26], s: [200, 26] }; // [stiffness, damping]; w/r/s are the island's
+const BASE = TOPSTYLE ? T_IDLE : CLOSED;
+const s = {}; for (const k in BASE) s[k] = { x: BASE[k], v: 0 };
+let target = BASE, raf = 0, last = 0;
 
 // Every segment meets the next with a shared tangent (arcs + straight runs + fillets), so no kinks at any size.
 function path({ d, h, c, a, fx, fy, t }) {
@@ -230,9 +280,10 @@ function frame(t) {
     if (Math.abs(p.v) > 0.05 || Math.abs(p.x - target[k]) > 0.05) moving = true;
   }
   const v = Object.fromEntries(Object.entries(s).map(([k, p]) => [k, p.x]));
-  const outline = path(v);
+  const outline = TOPSTYLE ? topPath(v) : path(v);
   blob.setAttribute('d', outline);
   $('#clip').style.clipPath = `path("${outline}")`;
+  if (TOPSTYLE) { placeTop(v); raf = moving ? requestAnimationFrame(frame) : 0; if (!moving) last = 0; return; }
   const p = Math.max(0, (v.d - CLOSED.d) / (OPEN.d - CLOSED.d)); // 0 closed → 1 open (overshoots a little)
   // Height and width spring separately, so use the smaller progress: content never spills outside the blob.
   const ph = Math.max(0, (v.h - CLOSED.h) / (OPEN.h - CLOSED.h)), q = Math.min(p, ph, 1);
@@ -249,13 +300,53 @@ function frame(t) {
 }
 const kick = () => { if (!raf) raf = requestAnimationFrame(frame); };
 
+// Island / Notch: the icon sits in the strip's left slot (working spinner / spinning cover), the strip text beside it;
+// both fade out as the panel opens, and the panel fades in once the card is nearly full size.
+function placeTop(v) {
+  const x0 = TCX - v.w / 2, q = Math.max(0, Math.min(1, (v.h - T_STRIP.h) / (T_OPEN.h - T_STRIP.h)));
+  const withIcon = stripKind === 'work' || stripKind === 'music', lineH = Math.min(v.h, T_STRIP.h);
+  icon.style.transform = `translate(${x0 + 24}px, ${TTOP + lineH / 2}px) scale(.74)`;
+  icon.style.opacity = withIcon && !open ? Math.max(0, 1 - q / 0.35) : 0;
+  const st = $('#strip');
+  st.style.left = (x0 + (withIcon ? 44 : 18)) + 'px';
+  st.style.width = Math.max(0, v.w - (withIcon ? 60 : 36)) + 'px';
+  st.style.top = TTOP + 'px';
+  st.style.height = lineH + 'px';
+  st.classList.toggle('show', !!stripKind && !open && v.w > T_STRIP.w * 0.8);
+  const panel = $('#panel');
+  panel.style.opacity = Math.max(0, Math.min(1, (q - 0.7) / 0.3));
+  panel.style.transform = 'none';
+}
+
+// The strip's content, most important first: a note (done / alert / new song), work in progress, music playing.
+const elapsed = () => { const sec = Math.max(0, Math.round((Date.now() - (workSince || Date.now())) / 1000)); return Math.floor(sec / 60) + ':' + String(sec % 60).padStart(2, '0'); };
+function stripContent() {
+  if (transient) return transient;
+  if (body.classList.contains('working'))
+    return { kind: 'work', html: `<span class="grow">${ai === 'claude' ? 'Claude' : 'Codex'} is working</span><span class="timer">${elapsed()}</span>` };
+  if (cfg.music && !media.none && media.status === 'playing' && media.title)
+    return { kind: 'music', html: `<span class="grow">${esc(media.title)}${media.artist ? ` <span class="mut">· ${esc(media.artist)}</span>` : ''}</span><span class="eqs"><i></i><i></i><i></i></span>` };
+  return null;
+}
+function updateTop() {
+  if (!TOPSTYLE) return;
+  const c = stripContent(), html = c?.html || '', st = $('#strip');
+  stripKind = c?.kind || '';
+  if (st.dataset.html !== html) { st.innerHTML = html; st.dataset.html = html; }
+  st.style.setProperty('--c', c?.color || 'var(--text)');
+  if (!open) target = c ? T_STRIP : T_IDLE;
+  kick();
+}
+setInterval(() => { if (stripKind === 'work') updateTop(); }, 1000); // tick the work timer
+
 // ---- Open / close: hover to peek, pin to keep open ----
 let open = false, pinned = false, inside = false, timer;
 function setOpen(o) {
   if (o === open) return;
-  open = o; target = o ? OPEN : CLOSED;
+  open = o; target = o ? (TOPSTYLE ? T_OPEN : OPEN) : (TOPSTYLE ? closedTop() : CLOSED);
   body.classList.toggle('open', o);
   if (o) { window.widget.refresh(); setTimeout(paintBars, 180); } else paintBars();
+  updateTop();
   kick();
 }
 function setInside(v) {
@@ -352,6 +443,7 @@ function setWorking(on) {
     $('.spin').textContent = STEPS[step];
   }, 120);
   if (!on) { clearInterval(spinTimer); spinTimer = 0; step = 0; }
+  updateTop();
 }
 
 // ---- Approvals: pop the panel open while Claude Code / Codex is waiting on Allow / Deny ----
@@ -420,6 +512,12 @@ window.widget.onRequests(renderAsks);
 // ---- Toast beside the tab: "done" notes and usage alerts ----
 let toastTimer;
 function toast(html, color, ms) {
+  if (TOPSTYLE) {
+    transient = { kind: 'note', html, color };
+    clearTimeout(transientTimer);
+    transientTimer = setTimeout(() => { transient = null; updateTop(); }, ms);
+    return updateTop();
+  }
   const t = $('#toast');
   t.style.setProperty('--c', color);
   t.innerHTML = html;
@@ -498,6 +596,7 @@ function renderMusic() {
   if (tabMusic) icon.title = media.title + (media.artist ? ' · ' + media.artist : '');
   else paintTitle();
   if (was !== show) fit();
+  updateTop();
 }
 window.widget.onMedia((m) => {
   if (m.artOnly) { mediaArt = m.art; mediaArtSmall = m.artSmall; return renderMusic(); } // re-sized after a size change
@@ -520,9 +619,11 @@ setInterval(() => { if (open && media.status === 'playing') paintProgress(); }, 
 
 let ai = 'claude';
 body.dataset.ai = ai;
-window.widget.onActivity((a) => { ai = a.ai; body.dataset.ai = ai; setWorking(a.working); paintTitle(); renderMusic(); });
+window.widget.onActivity((a) => { ai = a.ai; body.dataset.ai = ai; workSince = a.since || workSince; setWorking(a.working); paintTitle(); renderMusic(); });
 window.widget.onUsage((u) => { usage = u; render(); checkAlerts(u); });
+if (TOPSTYLE) { const p = $('#panel'); p.style.left = (TCX - T_OPEN.w / 2 + 20) + 'px'; p.style.width = (T_OPEN.w - 40) + 'px'; }
 fit();
+updateTop();
 </script>
 </body>
 </html>
