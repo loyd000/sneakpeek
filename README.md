@@ -67,7 +67,7 @@ Turn on **Start with Windows** in Settings if you want SneakPeek to start with W
   - **Notch:** a notch hanging from the top edge.
 
   In Island and Notch, the pill stays empty until something happens. Then it stretches to show the live activity: Claude or Codex working (with a timer), the song playing, or a "done" note.
-- **Hover** the tab (or island) to open the panel. **Click** it to keep the panel open.
+- **Hover** the tab (or island) to open the panel. **Click** it to keep the panel open, and click an empty part of the panel to let it close again. **Ctrl+Alt+P** does the same from the keyboard.
 - **Right-click** the tab, or click the tray icon, for Settings, Refresh and Quit.
 - Running `sneakpeek` again while it's running opens Settings.
 - Every `sneakpeek` start plays a small spinning logo in the terminal. Add `--quiet` to skip it.
