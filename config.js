@@ -11,6 +11,7 @@ const DEFAULTS = {
   lyrics: true,          // ...and the current lyric line (synced lyrics from lrclib.net)
   beatPulse: true,       // ...and music bars that move with the actual volume
   shortcuts: true,       // Ctrl+Alt+P opens the panel; Ctrl+Alt+Y / N / 1-9 answer a card
+  sessions: true,        // list every Claude Code / Codex session in the panel (when there's more than one)
   sounds: true,          // master switch for every chime
   doneNotes: true,       // "Claude is done" note when work finishes
   doneMinSec: 10,        // ...only for work that ran at least this long
@@ -29,7 +30,7 @@ function clean(s) {
   const d = DEFAULTS, bool = (k) => (typeof s[k] === 'boolean' ? s[k] : d[k]);
   const levels = Array.isArray(s.alertLevels) ? [...new Set(s.alertLevels.filter((n) => Number.isInteger(n) && n > 0 && n < 100))].sort((a, b) => a - b) : d.alertLevels;
   return {
-    claude: bool('claude'), codex: bool('codex'), music: bool('music'), songNotes: bool('songNotes'), coverBg: bool('coverBg'), lyrics: bool('lyrics'), beatPulse: bool('beatPulse'), shortcuts: bool('shortcuts'), sounds: bool('sounds'), doneNotes: bool('doneNotes'), alerts: bool('alerts'),
+    claude: bool('claude'), codex: bool('codex'), music: bool('music'), songNotes: bool('songNotes'), coverBg: bool('coverBg'), lyrics: bool('lyrics'), beatPulse: bool('beatPulse'), shortcuts: bool('shortcuts'), sessions: bool('sessions'), sounds: bool('sounds'), doneNotes: bool('doneNotes'), alerts: bool('alerts'),
     waitNotes: bool('waitNotes'), paceNotes: bool('paceNotes'), resetNotes: bool('resetNotes'),
     doneMinSec: num(s.doneMinSec, 0, 600, d.doneMinSec),
     alertLevels: levels.length ? levels.slice(0, 3) : d.alertLevels,

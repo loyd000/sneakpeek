@@ -664,7 +664,7 @@ window.widget.onDone(({ ai: who, project, ranMs, did }) => {
 let sessions = [];
 const ago = (ms) => ms < 60_000 ? 'just now' : ms < 3600_000 ? Math.floor(ms / 60_000) + 'm ago' : Math.floor(ms / 3600_000) + 'h ago';
 function renderSessions() {
-  const sec = $('#sessions'), list = sessions.filter((s) => cfg[s.ai]), show = list.length > 1;
+  const sec = $('#sessions'), list = sessions.filter((s) => cfg[s.ai]), show = cfg.sessions !== false && list.length > 1;
   const resize = sec.hidden === show || sec.querySelectorAll('.s').length !== (show ? list.length : 0); // re-measure the panel after filling it
   sec.hidden = !show;
   sec.querySelector('.body').innerHTML = !show ? '' : list.map((s) => {
