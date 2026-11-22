@@ -26,9 +26,10 @@
 Hover the tab and it opens into a panel showing:
 
 - **Your AI usage.** How much of your Claude Code and ChatGPT/Codex limits you've used, and when they reset. An alert shows when a limit passes 80% or 90%.
-- **Which AI is working.** Claude's spinner or ChatGPT's shimmer while it works, and a quiet "done" note when it finishes.
-- **Approvals and questions.** When Claude Code or Codex asks permission, or Claude asks you a question, answer it right in the panel.
-- **What's playing.** Song, spinning cover art and play/pause/skip for Spotify, YouTube, Apple Music and other players. While a song plays, a soft blurred copy of its cover fills the widget's background.
+- **Which AI is working.** Claude's spinner or ChatGPT's shimmer while it works, and a quiet "done" note when it finishes that says what it did ("edited 4 files, ran tests").
+- **Every session.** With more than one Claude Code or Codex session going, the panel lists each project and what it's doing: working, waiting for you, or done.
+- **Approvals and questions.** When Claude Code or Codex asks permission, or Claude asks you a question, answer it right in the panel, or from the keyboard: **Ctrl+Alt+Y** allows, **Ctrl+Alt+N** denies, **Ctrl+Alt+1–9** picks an answer. **Ctrl+Alt+P** opens or closes the panel.
+- **What's playing.** Song, spinning cover art and play/pause/skip for Spotify, YouTube, Apple Music and other players. While a song plays, a soft blurred copy of its cover fills the widget's background, the music bars move with the actual volume, and the line being sung shows under the song (synced lyrics from [LRCLIB](https://lrclib.net)).
 - **"Claude is waiting for you."** When Claude has finished and is sitting there waiting for your reply, SneakPeek tells you, and the note clears as soon as you answer.
 - **Your pace.** "~25m to limit at this pace" under any limit you'll run out of before it resets, with a heads-up when it's under 30 minutes. And a quick note when a limit you'd used up is fresh again.
 - **Notes from your own scripts.** `sneakpeek notify "Tests done"` pops a note in SneakPeek, e.g. `npm test; sneakpeek notify "Tests done"`.
@@ -114,6 +115,7 @@ npm uninstall -g sneakpeek
 - **What SneakPeek stores.** Its own settings, cached usage and activity live in `~/.sneakpeek/`.
 - **How it changes your config.** It only ever adds or removes its own entries in `~/.claude/settings.json` and `~/.codex/hooks.json`, and saves a backup (`.bak-sneakpeek`) next to the file before each change. It refuses to touch a file that isn't valid JSON.
 - **Music.** It reads Windows' own "now playing" info, the same as the volume-key popup. No Spotify login is needed.
+- **Lyrics.** For the lyric line, it sends the playing song's title and artist to [LRCLIB](https://lrclib.net), a free lyrics database. Nothing else is sent. Turn it off in Settings → Music → Lyrics.
 - **Updates.** A few times a day it reads this repo's `package.json` to see whether there's a newer version. That's the only other request it makes.
 
 ## How it works

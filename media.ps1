@@ -35,6 +35,36 @@ function Get-Art($props) {
   } catch { return $null }
 }
 
+# Output volume: the peak level of the default speakers (the bar in Windows' volume mixer), for the music bars.
+$meterOk = $true
+try {
+  Add-Type -TypeDefinition @'
+using System; using System.Runtime.InteropServices;
+[ComImport, Guid("A95664D2-9614-4F35-A746-DE8DB63617E6"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+interface IMMDeviceEnumerator { int EnumAudioEndpoints(); [PreserveSig] int GetDefaultAudioEndpoint(int flow, int role, out IMMDevice device); }
+[ComImport, Guid("D666063F-1587-4E43-81F1-B948E807363F"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+interface IMMDevice { [PreserveSig] int Activate(ref Guid iid, int ctx, IntPtr p, [MarshalAs(UnmanagedType.IUnknown)] out object o); }
+[ComImport, Guid("C02216F6-8C67-4B5B-9D00-D008E73E0064"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+interface IAudioMeterInformation { [PreserveSig] int GetPeakValue(out float peak); }
+[ComImport, Guid("BCDE0395-E52F-467C-8E3D-C4579291692E")] class MMDeviceEnumerator {}
+public static class SneakPeekMeter {
+  static IAudioMeterInformation meter;
+  public static void Reset() { meter = null; } // picks up a new default device (headphones plugged in)
+  public static float Peak() {
+    try {
+      if (meter == null) {
+        IMMDevice d; ((IMMDeviceEnumerator)new MMDeviceEnumerator()).GetDefaultAudioEndpoint(0, 1, out d);
+        Guid iid = typeof(IAudioMeterInformation).GUID; object o; d.Activate(ref iid, 23, IntPtr.Zero, out o);
+        meter = (IAudioMeterInformation)o;
+      }
+      float p; meter.GetPeakValue(out p); return p;
+    } catch { meter = null; return 0; }
+  }
+}
+'@
+} catch { $meterOk = $false }
+$inv = [Globalization.CultureInfo]::InvariantCulture; $tick = 0
+
 function Send($obj) { [Console]::Out.WriteLine(($obj | ConvertTo-Json -Compress)); [Console]::Out.Flush() }
 
 # Commands arrive on stdin. Reading it blocks in Windows PowerShell, so a background runspace reads lines into a queue.
@@ -62,6 +92,7 @@ while ($true) {
     $lastKey = '' # report the new state right away
   }
 
+  $playing = $false
   try {
     $s = $mgr.GetCurrentSession()
     if (-not $s) {
@@ -69,6 +100,7 @@ while ($true) {
     } else {
       $p = Await ($s.TryGetMediaPropertiesAsync()) ([Windows.Media.Control.GlobalSystemMediaTransportControlsSessionMediaProperties])
       $status = $s.GetPlaybackInfo().PlaybackStatus.ToString()
+      $playing = $status -eq 'Playing'
       $tl = $s.GetTimelineProperties()
       $track = "$($s.SourceAppUserModelId)|$($p.Title)|$($p.Artist)"
       $key = "$track|$status"
@@ -88,5 +120,11 @@ while ($true) {
       }
     }
   } catch {}
-  Start-Sleep -Milliseconds 500
+  if ($playing -and $meterOk) { # the volume, 10 times over the next half second
+    if ((++$tick % 20) -eq 0) { [SneakPeekMeter]::Reset() }
+    for ($i = 0; $i -lt 10; $i++) {
+      [Console]::Out.WriteLine('L ' + [Math]::Round([SneakPeekMeter]::Peak(), 3).ToString($inv)); [Console]::Out.Flush()
+      Start-Sleep -Milliseconds 50
+    }
+  } else { Start-Sleep -Milliseconds 500 }
 }

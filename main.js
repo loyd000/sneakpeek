@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, screen, Menu, Tray, nativeImage, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, screen, Menu, Tray, nativeImage, shell, globalShortcut } = require('electron');
 const { spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs');
@@ -25,7 +25,7 @@ let cfg = config.load();
 // The page is laid out at 380x620 and zoomed by cfg.scale (Settings → Size).
 // The page is laid out at a fixed size per style and zoomed by cfg.scale (Settings → Size):
 // the edge tab is a tall strip on the right; Island / Notch is a wide area at the top centre.
-const LAYOUT = { tab: [380, 620], island: [480, 460], notch: [480, 460] };
+const LAYOUT = { tab: [380, 760], island: [480, 600], notch: [480, 600] }; // room for sessions + song + lyrics + usage
 const size = () => { const [w, h] = LAYOUT[cfg.style] || LAYOUT.tab; return { w: Math.round(w * cfg.scale), h: Math.round(h * cfg.scale) }; };
 const loadWidget = () => win.loadFile('index.html', { query: { style: cfg.style } });
 const POLL_MS = 60_000;
@@ -103,7 +103,7 @@ function runUpdate() {
 // Docked to the right edge of the primary screen; Settings → Position moves it up or down.
 function dock() {
   const a = screen.getPrimaryDisplay().workArea, { w, h } = size();
-  if (cfg.style === 'tab') win.setBounds({ x: a.x + a.width - w, y: Math.round(a.y + (a.height - h) * cfg.offset / 100), width: w, height: h });
+  if (cfg.style === 'tab') win.setBounds({ x: a.x + a.width - w, y: Math.round(a.y + Math.max(0, a.height - h) * cfg.offset / 100), width: w, height: h });
   else win.setBounds({ x: Math.round(a.x + (a.width - w) / 2), y: a.y, width: w, height: h }); // top centre
 }
 
@@ -133,6 +133,8 @@ function applySettings(next) {
   send('settings', cfg);
   if (prev.claude !== cfg.claude || prev.codex !== cfg.codex) { lastActivity = ''; activity(); refresh(); }
   if (prev.music !== cfg.music) cfg.music ? startMedia() : stopMedia();
+  if (prev.shortcuts !== cfg.shortcuts) shortcuts();
+  if (prev.lyrics !== cfg.lyrics) { lyricKey = ''; lastLyrics = null; send('lyrics', null); lyrics(lastMedia); }
   return cfg;
 }
 
@@ -155,6 +157,7 @@ function sendMedia(msg) {
   if ('art' in msg) { lastArt = msg.art; Object.assign(msg, sizedArt(msg.art)); }
   if (lastMedia && 'art' in msg) Object.assign(lastMedia, { art: msg.art, artSmall: msg.artSmall });
   send('media', msg);
+  if (lastMedia) lyrics(lastMedia);
 }
 function startMedia() {
   if (media || !cfg.music) return;
@@ -167,6 +170,7 @@ function startMedia() {
     let i;
     while ((i = buf.indexOf('\n')) >= 0) {
       const line = buf.slice(0, i).trim(); buf = buf.slice(i + 1);
+      if (line.startsWith('L ')) { if (cfg.beatPulse) send('level', Number(line.slice(2)) || 0); continue; } // output volume, ~20 a second while playing
       if (!line.startsWith('{')) continue;
       try { mediaRetry = 0; sendMedia(JSON.parse(line)); } catch {}
     }
@@ -199,11 +203,15 @@ function activity() {
   let f = {};
   try { f = JSON.parse(fs.readFileSync(ACTIVITY, 'utf8')); } catch {}
   let latest = null, busy = null, waiting = null;
-  const now = new Map();
+  const now = new Map(), list = [];
   for (const ai of ['claude', 'codex'].filter((x) => cfg[x])) for (const [sid, s] of Object.entries(f[ai] || {})) {
     now.set(ai + ':' + sid, s.working);
     // Was working at the last read, now stopped: tell the page it's done (toast + sound).
-    if (wasWorking?.get(ai + ':' + sid) && !s.working) send('done', { ai, project: s.project || '', ranMs: s.at - (s.since ?? s.at) });
+    if (wasWorking?.get(ai + ':' + sid) && !s.working) send('done', { ai, project: s.project || '', ranMs: s.at - (s.since ?? s.at), did: s.did || null });
+    // Every session used in the last 2 hours, for the panel's session list.
+    const age = Date.now() - s.at;
+    if (age < 2 * 3600_000) list.push({ id: ai + ':' + sid, ai, project: s.project || '', working: !!s.working && age < STALE_MS, waiting: !!s.waiting,
+      since: s.since || s.at, at: s.at, did: s.did || null });
     if (!latest || s.at > latest.at) latest = { ai, at: s.at };
     if (s.working && Date.now() - s.at < STALE_MS && (!busy || s.at > busy.at)) busy = { ai, at: s.at, since: s.since || s.at };
     // Waiting for your reply (Claude's idle notification); forgotten after 3 hours.
@@ -214,6 +222,50 @@ function activity() {
     waiting: waiting && { ai: waiting.ai, project: waiting.project } };
   const key = JSON.stringify(a);
   if (key !== lastActivity) { lastActivity = key; send('activity', a); }
+  list.sort((x, y) => (y.working - x.working) || (y.waiting - x.waiting) || (y.at - x.at));
+  const sk = JSON.stringify(list);
+  if (sk !== lastSessions) { lastSessions = sk; send('sessions', list); }
+}
+let lastSessions = '';
+
+// Keyboard: Ctrl+Alt+P opens or closes the panel. Only while a card is showing, Ctrl+Alt+Y / N allow or deny it and
+// Ctrl+Alt+1-9 pick an answer, so those keys are left alone the rest of the time.
+let keysForCards = false;
+function shortcuts(cards = keysForCards) {
+  keysForCards = cards;
+  globalShortcut.unregisterAll();
+  if (!cfg.shortcuts) return;
+  globalShortcut.register('Control+Alt+P', () => send('key', 'peek'));
+  if (cards) for (const k of 'YN123456789') globalShortcut.register('Control+Alt+' + k, () => send('key', k.toLowerCase()));
+}
+app.on('will-quit', () => globalShortcut.unregisterAll());
+
+// Synced lyrics from LRCLIB (lrclib.net: free, no account). Only the song's title and artist are sent.
+const lyricCache = new Map();
+let lyricKey = '', lastLyrics = null;
+const parseLrc = (s) => s.split('\n').flatMap((l) => {
+  const m = l.match(/^\[(\d+):(\d+(?:\.\d+)?)\](.*)/);
+  return m ? [{ t: Math.round((+m[1] * 60 + +m[2]) * 1000), text: m[3].trim() }] : [];
+});
+async function lyrics(m) {
+  if (!cfg.lyrics || !m?.title || !m.artist) return;
+  const key = m.artist + '|' + m.title;
+  if (key === lyricKey) return;
+  lyricKey = key;
+  if (!lyricCache.has(key)) {
+    let lines = null;
+    try {
+      const r = await fetch('https://lrclib.net/api/search?' + new URLSearchParams({ track_name: m.title, artist_name: m.artist }),
+        { headers: { 'User-Agent': `SneakPeek/${app.getVersion()} (https://github.com/loyd000/sneakpeek)` }, signal: AbortSignal.timeout(8000) });
+      const dur = (m.dur || 0) / 1000;
+      // The closest match by length; a different edit of the song (off by more than 5 seconds) would be out of time.
+      const hit = (r.ok ? await r.json() : []).filter((x) => x.syncedLyrics)
+        .sort((a, b) => Math.abs(a.duration - dur) - Math.abs(b.duration - dur))[0];
+      if (hit && (!dur || Math.abs(hit.duration - dur) < 5)) lines = parseLrc(hit.syncedLyrics);
+    } catch {} // offline or slow: no lyrics for this song
+    lyricCache.set(key, lines);
+  }
+  if (key === lyricKey) { lastLyrics = { key, lines: lyricCache.get(key) }; send('lyrics', lastLyrics); }
 }
 
 const alive = (pid) => { try { process.kill(pid, 0); return true; } catch { return false; } };
@@ -232,6 +284,7 @@ function requests() {
   } catch {}
   list.sort((a, b) => a.at - b.at);
   send('requests', list);
+  if (!!list.length !== keysForCards) shortcuts(!!list.length);
   clearTimeout(reqTimer);
   if (list.length) reqTimer = setTimeout(requests, 2000); // keep checking while cards are up
 }
@@ -255,7 +308,8 @@ app.whenReady().then(() => {
   win.setIgnoreMouseEvents(true, { forward: true }); // transparent area clicks pass through to the desktop
   dock();
   win.webContents.on('did-finish-load', () => {
-    win.webContents.setZoomFactor(cfg.scale); send('settings', cfg); lastActivity = ''; activity(); requests();
+    win.webContents.setZoomFactor(cfg.scale); send('settings', cfg); lastActivity = lastSessions = ''; activity(); requests();
+    if (lastLyrics) send('lyrics', lastLyrics);
     if (last) send('usage', last);            // after a style change the page reloads: show everything again at once
     if (lastMedia) send('media', lastMedia);
     notes();                                  // notes sent just before SneakPeek started
@@ -277,6 +331,7 @@ app.whenReady().then(() => {
   setInterval(checkForUpdate, 6 * 3600_000);
   setInterval(refresh, POLL_MS);
   setInterval(activity, 10_000); // expire stale "working" sessions
+  shortcuts(false);
 
   // statusline.js rewrites the feed after every Claude Code reply; activity.js rewrites activity on every hook.
   let t, rt, nt;

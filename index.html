@@ -45,7 +45,7 @@
   @keyframes sweep { from { -webkit-mask-position: 100% 0; } to { -webkit-mask-position: 0 0; } }
 
   /* "Done" note: a small pill beside the closed tab. pointer-events: none keeps clicks passing through to the desktop. */
-  #toast { position: absolute; right: 50px; top: 310px; display: flex; align-items: center; gap: 7px; padding: 8px 13px;
+  #toast { position: absolute; right: 50px; top: 380px; display: flex; align-items: center; gap: 7px; padding: 8px 13px;
     border-radius: 99px; background: var(--ink); color: var(--muted); font-size: 12px; white-space: nowrap; pointer-events: none;
     opacity: 0; transform: translate(14px, -50%); transition: opacity .35s, transform .5s cubic-bezier(.2, 1.3, .4, 1); }
   #toast.show { opacity: 1; transform: translate(0, -50%); }
@@ -137,6 +137,30 @@
   .meter.hot .fill { background: var(--hot); }
   .note, .err { color: var(--muted); font-size: 11px; }
   .meter .pace { margin-top: 5px; font-size: 11px; color: #ffc65a; } /* "~40m to limit at this pace" */
+  /* Sessions: every Claude Code / Codex session from the last 2 hours, shown when there's more than one */
+  #sessions .s { display: flex; align-items: center; gap: 8px; height: 24px; font-size: 12.5px; }
+  #sessions .dot { width: 6px; height: 6px; flex: none; border-radius: 50%; background: var(--track); }
+  #sessions .working .dot { background: var(--c); animation: wpulse 1.6s ease-in-out infinite; }
+  #sessions .waiting .dot { background: var(--c); }
+  #sessions .p { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #sessions .st { color: var(--muted); font-size: 11.5px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  #sessions .waiting .st { color: var(--c); }
+  /* Lyrics: the current line under the song, up to two lines tall so the panel doesn't jump */
+  #music .ly { height: 2.7em; margin-top: 12px; font-size: 12.5px; line-height: 1.35; overflow: hidden; display: -webkit-box;
+    -webkit-line-clamp: 2; -webkit-box-orient: vertical; transition: opacity .12s; }
+  #music .ly.swap { opacity: 0; }
+  #strip .ly { animation: lyin .35s ease-out; }
+  @keyframes lyin { from { opacity: 0; transform: translateY(3px); } }
+  /* Beat pulse: with live volume, the bars follow it instead of looping */
+  body.live-eq .eq i, body.live-eq #strip .eqs i { animation: none; transition: height .09s linear; }
+  body.live-eq.cover-bg #backdrop img.on { transform: scale(calc(1 + var(--lvl, 0) * .06)); transition: opacity .7s ease, transform .12s linear; }
+  /* Keyboard: numbers on a question's answers, and a hint under the first card */
+  .ask { counter-reset: opt; }
+  body.keys .ask:first-child .opt::before { counter-increment: opt; content: counter(opt); margin-right: 8px; color: var(--muted); font-size: 11px; }
+  .keyhint { display: none; margin-top: 8px; font-size: 10.5px; color: var(--muted); text-align: center; }
+  body.keys .ask:first-child .keyhint { display: block; }
+  #toast { max-width: 320px; }
+  #toast > span:last-child { overflow: hidden; text-overflow: ellipsis; }
   #strip .wdot { width: 7px; height: 7px; flex: none; border-radius: 50%; background: var(--c); animation: wpulse 1.6s ease-in-out infinite; }
   @keyframes wpulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: .35; transform: scale(.7); } }
 
@@ -192,9 +216,11 @@
     </button>
   </header>
   <div id="asks"></div>
+  <section class="prov" id="sessions" hidden><div class="name">Sessions</div><div class="body"></div></section>
   <section class="prov" id="music" hidden>
     <div class="name">Now playing</div>
     <div class="np"><img class="cover" alt=""><div class="meta"><div class="t"></div><div class="a"></div></div></div>
+    <div class="ly" hidden></div>
     <div class="mbar"><div class="mfill"></div></div>
     <div class="times"><span class="cur"></span><span class="dur"></span></div>
     <div class="ctl">
@@ -210,7 +236,7 @@
 <script>
 const $ = (s) => document.querySelector(s);
 const body = document.body, blob = $('#blob'), icon = $('#icon');
-const W = 380, CY = 310; // fixed layout size; main.js zooms the whole page to the real window size
+const W = 380, CY = 380; // fixed layout size (tab: 380 x 760); main.js zooms the whole page to the real window size
 
 // Which look: 'tab' (right edge), 'island' (floating pill at the top centre) or 'notch' (hangs from the top edge).
 const STYLE = new URLSearchParams(location.search).get('style') || 'tab', TOPSTYLE = STYLE !== 'tab', NOTCH = STYLE === 'notch';
@@ -252,7 +278,7 @@ let PANEL_TOP;
 function fit() {
   const panel = $('#panel');
   if (TOPSTYLE) {
-    T_OPEN.h = Math.min(440, Math.ceil(panel.offsetHeight + 34));
+    T_OPEN.h = Math.min(580, Math.ceil(panel.offsetHeight + 34));
     panel.style.top = (TTOP + 16) + 'px';
     return kick();
   }
@@ -346,7 +372,8 @@ function stripContent() {
   if (body.classList.contains('working'))
     return { kind: 'work', html: `<span class="grow">${ai === 'claude' ? 'Claude' : 'Codex'} is working</span><span class="timer">${elapsed()}</span>` };
   if (cfg.music && !media.none && media.status === 'playing' && media.title)
-    return { kind: 'music', html: `<span class="grow">${esc(media.title)}${media.artist ? ` <span class="mut">· ${esc(media.artist)}</span>` : ''}</span><span class="eqs"><i></i><i></i><i></i></span>` };
+    return { kind: 'music', html: (lyricNow ? `<span class="grow ly">${esc(lyricNow)}</span>` // the line being sung, else the song
+      : `<span class="grow">${esc(media.title)}${media.artist ? ` <span class="mut">· ${esc(media.artist)}</span>` : ''}</span>`) + '<span class="eqs"><i></i><i></i><i></i></span>' };
   return null;
 }
 function updateTop() {
@@ -395,6 +422,8 @@ window.widget.onSettings((c) => {
   cfg = c;
   body.classList.toggle('no-claude', !c.claude);
   body.classList.toggle('no-codex', !c.codex);
+  body.classList.toggle('keys', c.shortcuts !== false);
+  renderSessions(); tickLyrics(true);
   if (usage) render(); else fit();
   renderMusic();
 });
@@ -543,10 +572,12 @@ const card = (r) => r.questions
   ? `<div class="ask" data-id="${esc(r.id)}"><div class="head">${who(r)} asks · ${esc(r.project)}</div>
       ${r.questions.map((q, qi) => `<div class="q">${esc(q.question)}</div>
         <div class="opts" data-q="${qi}" data-multi="${q.multiSelect ? 1 : 0}">${q.options.map((o) => `<button class="opt">${esc(o)}</button>`).join('')}</div>`).join('')}
-      <div class="btns"><button class="skip deny">Answer in app</button>${r.questions.length > 1 || r.questions[0].multiSelect ? '<button class="send allow" disabled>Send</button>' : ''}</div></div>`
+      <div class="btns"><button class="skip deny">Answer in app</button>${r.questions.length > 1 || r.questions[0].multiSelect ? '<button class="send allow" disabled>Send</button>' : ''}</div>
+      <div class="keyhint">Ctrl+Alt+number to pick</div></div>`
   : `<div class="ask" data-id="${esc(r.id)}"><div class="head">${who(r)} wants to ${esc(r.verb)} · ${esc(r.project)}</div>
       <div class="detail">${esc(r.detail)}</div>
-      <div class="btns"><button class="deny">Deny</button><button class="allow">Allow</button></div></div>`;
+      <div class="btns"><button class="deny">Deny</button><button class="allow">Allow</button></div>
+      <div class="keyhint">Ctrl+Alt+Y allow · Ctrl+Alt+N deny</div></div>`;
 // Soft two-note chimes made with Web Audio, so no sound file is needed.
 // New card: rising E6 -> A6. Done: falling A6 -> E6, a little quieter.
 let audio;
@@ -617,11 +648,47 @@ function toast(html, color, ms) {
 }
 
 // Done: Claude Code / Codex finished a stretch of work.
-window.widget.onDone(({ ai: who, project, ranMs }) => {
+// What Claude did in that turn, in a few words: "edited 4 files, ran tests".
+const plural = (n, w) => `${n} ${w}${n > 1 ? 's' : ''}`;
+const didText = (d) => !d ? '' : [d.files?.length ? 'edited ' + plural(d.files.length, 'file') : '',
+  d.tests ? 'ran tests' : d.cmds ? 'ran ' + plural(d.cmds, 'command') : ''].filter(Boolean).join(', ');
+window.widget.onDone(({ ai: who, project, ranMs, did }) => {
   if (!cfg.doneNotes || ranMs < cfg.doneMinSec * 1000) return; // quick replies stay quiet
   chime([[1760, 0], [1318.5, 0.14]], 0.09);
-  toast(`<span class="ok">✓</span><span><b>${who === 'claude' ? 'Claude' : 'Codex'}</b> is done${project ? ' · ' + esc(project) : ''}</span>`,
-    who === 'claude' ? 'var(--claude)' : 'var(--codex)', 5000);
+  const what = didText(did);
+  toast(`<span class="ok">✓</span><span><b>${who === 'claude' ? 'Claude' : 'Codex'}</b> is done${project ? ' · ' + esc(project) : ''}${what ? ' · ' + what : ''}</span>`,
+    who === 'claude' ? 'var(--claude)' : 'var(--codex)', what ? 7000 : 5000);
+});
+
+// ---- Sessions: when more than one Claude Code / Codex session is in use, list them with what each is doing ----
+let sessions = [];
+const ago = (ms) => ms < 60_000 ? 'just now' : ms < 3600_000 ? Math.floor(ms / 60_000) + 'm ago' : Math.floor(ms / 3600_000) + 'h ago';
+function renderSessions() {
+  const sec = $('#sessions'), list = sessions.filter((s) => cfg[s.ai]), show = list.length > 1;
+  const resize = sec.hidden === show || sec.querySelectorAll('.s').length !== (show ? list.length : 0); // re-measure the panel after filling it
+  sec.hidden = !show;
+  sec.querySelector('.body').innerHTML = !show ? '' : list.map((s) => {
+    const st = s.working ? 'working ' + mmss(Date.now() - s.since) : s.waiting ? 'waiting for you' : 'done ' + ago(Date.now() - s.at);
+    const files = s.did?.files?.length ? didText(s.did) + ': ' + s.did.files.join(', ') : '';
+    return `<div class="s ${s.working ? 'working' : s.waiting ? 'waiting' : ''}" style="--c: var(--${s.ai})" title="${esc(files)}">`
+      + `<span class="dot"></span><span class="p">${esc(s.project || (s.ai === 'claude' ? 'Claude Code' : 'Codex'))}</span><span class="st">${st}</span></div>`;
+  }).join('');
+  if (resize) fit();
+}
+window.widget.onSessions((l) => { sessions = l; renderSessions(); });
+setInterval(() => { if (open && !$('#sessions').hidden) renderSessions(); }, 1000);
+
+// ---- Keyboard (Ctrl+Alt+...): P opens or closes the panel; Y / N allow or deny the first card; 1-9 pick an answer ----
+window.widget.onKey((k) => {
+  if (k === 'peek') {
+    if (open) { if (pinned) togglePin(); setOpen(false); }
+    else if (!pinned) togglePin(); else setOpen(true);
+    return;
+  }
+  const el = $('#asks .ask:not(.sent)');
+  if (!el) return;
+  const b = k === 'y' ? el.querySelector('.allow:not(.send)') : k === 'n' ? el.querySelector('.deny') : el.querySelectorAll('.opt')[+k - 1];
+  b?.click();
 });
 
 // Usage alerts: once per level (80%, then 90%) for each limit window. What's been alerted is kept in
@@ -700,6 +767,46 @@ function renderMusic() {
   if (was !== show) fit();
   updateTop();
 }
+// ---- Lyrics: the line being sung now, from synced lyrics (main fetches them) ----
+let lyricLines = null, lyricKey = '', lyricNow = null; // lyricNow: null = no lyrics, '' = between lines
+window.widget.onLyrics((l) => { lyricKey = l?.key || ''; lyricLines = l?.lines?.length ? l.lines : null; tickLyrics(true); });
+function currentLyric() {
+  if (cfg.lyrics === false || !lyricLines || media.none || (media.artist + '|' + media.title) !== lyricKey) return null;
+  const p = mediaPos() + 250; // a quarter second early, so the line appears as it's sung
+  let line = null;
+  for (const l of lyricLines) { if (l.t <= p) line = l; else break; }
+  return line ? line.text : '';
+}
+function tickLyrics(force) {
+  const cur = currentLyric(), ly = $('#music .ly'), has = cur !== null;
+  if (ly.hidden === has) { ly.hidden = !has; fit(); }
+  if (cur === lyricNow && !force) return;
+  lyricNow = cur;
+  if (has) { ly.classList.add('swap'); setTimeout(() => { ly.textContent = cur || '♪'; ly.classList.remove('swap'); }, 120); }
+  updateTop();
+}
+setInterval(() => { if (lyricLines && media.status === 'playing') tickLyrics(); }, 200);
+
+// ---- Beat pulse: the output volume (~20 a second while playing) drives the music bars and the cover background ----
+let lastLevel = 0;
+const BAR = [0.75, 1, 0.6]; // each bar reacts a little differently
+window.widget.onLevel((v) => {
+  const l = Math.min(1, Math.sqrt(v) * 1.15);
+  lastLevel = Date.now();
+  body.classList.add('live-eq');
+  body.style.setProperty('--lvl', l.toFixed(3));
+  for (const group of document.querySelectorAll('.eq, #strip .eqs')) {
+    const max = group.classList.contains('eq') ? 18 : 13;
+    group.querySelectorAll('i').forEach((bar, i) => { bar.style.height = Math.max(3, max * l * BAR[i] * (0.8 + Math.random() * 0.4)) + 'px'; });
+  }
+});
+setInterval(() => { // volume stopped coming (paused, or switched off): back to the looping bars
+  if (lastLevel && Date.now() - lastLevel > 1500) {
+    lastLevel = 0; body.classList.remove('live-eq');
+    document.querySelectorAll('.eq i, #strip .eqs i').forEach((b) => { b.style.height = ''; });
+  }
+}, 1000);
+
 window.widget.onMedia((m) => {
   if (m.artOnly) { mediaArt = m.art; mediaArtSmall = m.artSmall; return renderMusic(); } // re-sized after a size change
   if (m.none) { media = { none: true }; mediaArt = mediaArtSmall = null; }
