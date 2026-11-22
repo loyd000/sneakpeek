@@ -41,6 +41,13 @@ const LOGIN = { path: process.execPath, args: [path.resolve(__dirname)], name: '
 // openAtLogin isn't reliable for a named entry on Windows; the launchItems list is.
 const hasStartupEntry = (name) => (app.getLoginItemSettings(LOGIN).launchItems || []).some((i) => i.name === name && i.enabled !== false);
 const startsWithWindows = () => hasStartupEntry(LOGIN.name);
+// The entry may start another SneakPeek copy (e.g. a git clone instead of this npm install): name that folder.
+// Switching it on again rewrites the entry to start this copy.
+const startupElsewhere = () => {
+  const item = (app.getLoginItemSettings(LOGIN).launchItems || []).find((i) => i.name === LOGIN.name);
+  const dir = item?.args?.[0] && path.resolve(String(item.args[0]).replace(/^"|"$/g, ''));
+  return dir && dir.toLowerCase() !== path.resolve(__dirname).toLowerCase() ? dir.replace(/\\/g, '/') : null;
+};
 const setStartup = (on) => app.setLoginItemSettings({ ...LOGIN, openAtLogin: on });
 // Renamed from Clio: swap the old "Clio" startup entry for a "SneakPeek" one, keeping whether it was on.
 function migrateStartup() {
@@ -294,7 +301,7 @@ function buildTray() {
   ]));
 }
 
-const snapshot = () => ({ settings: cfg, integrations: integrations.state(), startup: startsWithWindows(), version: app.getVersion(),
+const snapshot = () => ({ settings: cfg, integrations: integrations.state(), startup: startsWithWindows(), startupElsewhere: startupElsewhere(), version: app.getVersion(),
   update: { available: update, canInstall: installedWithNpm } });
 // Every call answers with the real state afterwards, plus an error message if the change didn't happen.
 const guarded = (e, fn) => {

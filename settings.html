@@ -121,7 +121,7 @@
   <div class="row"><div class="txt"><div class="name">Position</div><div class="desc">Where it sits on the right edge</div></div><div class="slider"><input type="range" min="0" max="100" step="1" id="offset" aria-label="Widget position"><output id="offset-out"></output></div></div>
 
   <h2>General</h2>
-  <div class="row"><div class="txt"><div class="name">Start with Windows</div></div><label class="sw"><input type="checkbox" id="startup"></label></div>
+  <div class="row"><div class="txt"><div class="name">Start with Windows</div><div class="desc warn" id="startup-desc" hidden></div></div><label class="sw"><input type="checkbox" id="startup"></label></div>
   <div class="row"><div class="txt"><div class="name">Updates</div><div class="desc" id="update-desc"></div></div><button class="plain" id="update-btn">Check now</button></div>
   <div class="row"><div class="txt"><div class="name">Remove all integrations</div><div class="desc">Takes SneakPeek's hooks and status line out of Claude Code and Codex</div></div><button class="danger" id="remove-all">Remove</button></div>
 
@@ -168,11 +168,21 @@ function render(s) {
     note.classList.toggle('warn', !!i[ai + '.error']);
     note.hidden = !note.textContent;
   }
-  const feed = $('#feed-desc');
-  feed.classList.toggle('warn', i['claude.feed.blocked']);
-  feed.textContent = i['claude.feed.blocked'] ? 'Claude Code already has another status line, so SneakPeek leaves it alone'
-    : 'Updates SneakPeek after every reply, and shows usage in the terminal status line';
-  if (i['claude.feed.blocked']) $('[data-int="claude.feed"]').disabled = true;
+  // Each integration's description says if another SneakPeek copy (e.g. a git clone next to the npm install) set it up.
+  const short = (dir) => dir.replace(/^C:\/Users\/[^/]+/i, '~');
+  document.querySelectorAll('[data-int]').forEach((el) => {
+    const key = el.dataset.int, desc = el.closest('.row').querySelector('.desc'), other = i[key + '.elsewhere'];
+    desc.dataset.text ??= desc.textContent;
+    let text = desc.dataset.text, warn = false;
+    if (key === 'claude.feed' && i['claude.feed.blocked']) { text = 'Claude Code already has another status line, so SneakPeek leaves it alone'; warn = true; el.disabled = true; }
+    else if (other && el.checked) { text = `Also set up by SneakPeek in ${short(other)}, so it runs twice. Switch off and on to keep just this copy.`; warn = true; }
+    else if (other) { text = `Set up by SneakPeek in ${short(other)}. Switch on to move it to this copy.`; warn = true; }
+    desc.textContent = text;
+    desc.classList.toggle('warn', warn);
+  });
+  const sd = $('#startup-desc');
+  sd.textContent = s.startupElsewhere ? `Starts the SneakPeek in ${short(s.startupElsewhere)}. Switch off and on to start this copy instead.` : '';
+  sd.hidden = !sd.textContent;
 
   $('#doneMinSec').value = c.doneMinSec;
   [$('#lvl1').value, $('#lvl2').value] = [c.alertLevels[0] ?? '', c.alertLevels[1] ?? ''];
