@@ -105,12 +105,19 @@
   .styles .screen { aspect-ratio: 16 / 9; }
   .styles figcaption { margin-top: 14px; font-weight: 600; text-align: left; }
   .styles figcaption span { display: block; font-weight: 400; font-size: 14px; color: var(--muted); }
-  .mini-tab { position: absolute; right: 0; top: 50%; width: 30px; height: 58px; margin-top: -29px; border-radius: 14px 0 0 14px; background: #000;
-    display: grid; place-items: center; color: var(--claude); font-size: 15px; box-shadow: -6px 0 18px rgba(0, 0, 0, .35); }
+  /* The tab and notch outlines come from the widget's own shape code (the closed tab, and the notch's live strip) */
+  .mini-tab { position: absolute; right: 0; top: 50%; width: 30px; height: 98px; margin-top: -49px; }
+  .mini-tab svg, .mini-notch svg { position: absolute; inset: 0; width: 100%; height: 100%; fill: #000; overflow: visible; }
+  .mini-tab .glyph { position: absolute; left: 0; width: 100%; top: 50%; margin-top: -8px; font-size: 15px; }
+  .mini-notch { position: absolute; left: 50%; top: 0; isolation: isolate; display: flex; align-items: center; gap: 7px; width: 243px; height: 29px;
+    padding: 0 22px 0 20px; transform: translateX(-50%); font-size: 11px; white-space: nowrap; }
+  .mini-notch svg { z-index: -1; }
+  .mini-notch .cover { width: 16px; height: 16px; }
+  .mini-notch .mut { color: var(--muted); }
+  .mini-notch .eqs { margin-left: auto; }
   .mini-pill { position: absolute; left: 50%; display: flex; align-items: center; gap: 7px; transform: translateX(-50%); background: #000; height: 28px; padding: 0 12px 0 9px;
     font-size: 11px; white-space: nowrap; box-shadow: 0 8px 20px rgba(0, 0, 0, .4); }
   .mini-pill.island { top: 12px; border-radius: 14px; }
-  .mini-pill.notch { top: 0; height: 30px; border-radius: 0 0 14px 14px; }
   .mini-pill .glyph { width: 12px; font-size: 12px; }
   .mini-pill .cover { width: 16px; height: 16px; }
   .mini-pill .mut { color: var(--muted); }
@@ -206,11 +213,11 @@
       <p>Switch any time in Settings.</p>
     </div>
     <div class="styles rise">
-      <figure><div class="screen"><div class="mini-tab"><span class="glyph" data-spin>✶</span></div></div>
+      <figure><div class="screen"><div class="mini-tab"><svg viewBox="62 37.93 38 124.15" preserveAspectRatio="none" aria-hidden="true"><path d="M100,37.93 C100,53.93 84,73.28 75.26,77.93 C67.1,82.27 62,90.76 62,100 C62,109.24 67.1,117.73 75.26,122.07 C84,126.72 100,146.07 100,162.07 Z"/></svg><span class="glyph" data-spin>✶</span></div></div>
         <figcaption>Edge tab<span>Peeks from the right edge</span></figcaption></figure>
       <figure><div class="screen"><div class="mini-pill island"><span class="glyph" data-spin>✶</span>Claude is working<span class="mut" data-clock>0:42</span></div></div>
         <figcaption>Island<span>Floats at the top</span></figcaption></figure>
-      <figure><div class="screen"><div class="mini-pill notch"><span class="cover"></span>Low Sun <span class="mut">· Harbor Lights</span></div></div>
+      <figure><div class="screen"><div class="mini-notch"><svg viewBox="0 0 304 36" preserveAspectRatio="none" aria-hidden="true"><path d="M-4,0 L0,0 C6.63,0 12,5.37 12,12 L12,20 C12,28.84 19.16,36 28,36 L276,36 C284.84,36 292,28.84 292,20 L292,12 C292,5.37 297.37,0 304,0 L308,0 Z"/></svg><span class="cover"></span>Low Sun <span class="mut">· Harbor Lights</span><span class="eqs"><i></i><i></i><i></i></span></div></div>
         <figcaption>Notch<span>Hangs from the top edge</span></figcaption></figure>
     </div>
   </section>
