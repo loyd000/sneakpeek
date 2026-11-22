@@ -7,6 +7,7 @@ const DEFAULTS = {
   codex: true,           // show ChatGPT / Codex
   music: true,           // now playing from any media app (Spotify, browsers...)
   songNotes: true,       // ...with a small note when the song changes
+  coverBg: true,         // ...and a blurred copy of the cover behind the widget while it plays
   sounds: true,          // master switch for every chime
   doneNotes: true,       // "Claude is done" note when work finishes
   doneMinSec: 10,        // ...only for work that ran at least this long
@@ -25,7 +26,7 @@ function clean(s) {
   const d = DEFAULTS, bool = (k) => (typeof s[k] === 'boolean' ? s[k] : d[k]);
   const levels = Array.isArray(s.alertLevels) ? [...new Set(s.alertLevels.filter((n) => Number.isInteger(n) && n > 0 && n < 100))].sort((a, b) => a - b) : d.alertLevels;
   return {
-    claude: bool('claude'), codex: bool('codex'), music: bool('music'), songNotes: bool('songNotes'), sounds: bool('sounds'), doneNotes: bool('doneNotes'), alerts: bool('alerts'),
+    claude: bool('claude'), codex: bool('codex'), music: bool('music'), songNotes: bool('songNotes'), coverBg: bool('coverBg'), sounds: bool('sounds'), doneNotes: bool('doneNotes'), alerts: bool('alerts'),
     waitNotes: bool('waitNotes'), paceNotes: bool('paceNotes'), resetNotes: bool('resetNotes'),
     doneMinSec: num(s.doneMinSec, 0, 600, d.doneMinSec),
     alertLevels: levels.length ? levels.slice(0, 3) : d.alertLevels,
