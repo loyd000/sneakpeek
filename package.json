@@ -1,7 +1,7 @@
 {
   "name": "sneakpeek",
   "productName": "SneakPeek",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "A tab on the edge of your screen: Claude Code and ChatGPT/Codex usage, approvals, and what's playing.",
   "private": true,
   "main": "main.js",
