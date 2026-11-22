@@ -9,6 +9,8 @@
 
 <p align="center">A small tab that peeks out from the edge of your screen,<br>so you always know what your AI is up to.</p>
 
+<p align="center"><a href="https://getsneakpeek.vercel.app"><b>getsneakpeek.vercel.app</b></a></p>
+
 <p align="center">
   <img alt="Windows 10 and 11" src="https://img.shields.io/badge/Windows-10%20%7C%2011-111111">
   <img alt="Node 18 or newer" src="https://img.shields.io/badge/node-%E2%89%A518-111111">
