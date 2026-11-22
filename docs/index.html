@@ -371,19 +371,22 @@ function draw(a, t, cx, cy, scale) {
 const dec = new TextDecoder();
 
 // Where the eye looks: toward the cursor (or a slow drift on touch screens), and it settles back as you scroll.
-let mx = 0, my = 0, sx = 0, sy = 0, last = 0, t0 = performance.now();
+let mx = 0, my = 0, sx = 0, sy = 0, last = 0, spin = 0, t0 = performance.now();
 addEventListener('pointermove', (e) => { if (e.pointerType === 'mouse') { mx = e.clientX / innerWidth * 2 - 1; my = e.clientY / innerHeight * 2 - 1; } }, { passive: true });
 function tick(now) {
   requestAnimationFrame(tick);
   if (now - last < 33) return; // ~30 frames a second is plenty for characters
+  const dt = Math.min(.1, (now - last) / 1000);
   last = now;
   const time = (now - t0) / 1000, p = Math.min(1, scrollY / innerHeight);
   sx += (mx - sx) * .08; sy += (my - sy) * .08;
-  // Past the first screen the eye grows into a large, dim backdrop and turns less, so text stays easy to read.
+  // The eye spins a full turn every ~8 seconds; the cursor nudges it. Past the first screen it grows into a
+  // large, dim backdrop and spins slower, so text stays easy to read.
   const scale = base() * (1 + 1.1 * p * p), calm = 1 - .6 * p;
+  spin += dt * (Math.PI * 2 / 8) * calm;
   const cy = (rows * .1 + base() * .375 + 2) * (1 - p) + rows * .5 * p;
   pre.style.opacity = 1 - .84 * p;
-  draw((.28 * Math.sin(time * .45) + sx * .75) * calm, (.1 - sy * .45 + .08 * Math.sin(time * .31)) * calm, cols / 2, cy, scale);
+  draw(spin + sx * .6, (.12 - sy * .4 + .08 * Math.sin(time * .31)) * calm, cols / 2, cy, scale);
 }
 
 loadMask().then((m) => {
